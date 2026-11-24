@@ -1,0 +1,80 @@
+# Python environments and caches
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node / Electron
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build and packaging outputs
+build/
+dist/
+out/
+release/
+*.asar
+
+# Local model artifacts and caches (never commit models)
+*.gguf
+*.ggml
+*.bin
+*.safetensors
+*.onnx
+*.pt
+*.pth
+model_cache/
+hf_cache/
+models_data/
+*.tokenizer.json
+
+# Local databases and user data (never commit user content)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+chroma/
+chroma_db/
+data/
+vault_data/
+storage/
+
+# Logs
+logs/
+*.log
+
+# Secrets and local environment overrides
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.secret
+secrets/
+
+# Temporary and OS files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini

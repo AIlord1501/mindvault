@@ -1,0 +1,19 @@
+{
+  "name": "mindvault-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline-first Electron desktop client for MindVault",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node --test tests/*.test.js",
+    "check": "node --check main.js && node --check preload.js && node --check renderer/js/app.js"
+  },
+  "dependencies": {
+    "d3": "^7.9.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0"
+  }
+}

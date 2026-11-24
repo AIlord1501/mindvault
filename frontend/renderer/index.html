@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src http://127.0.0.1:*; object-src 'none'; base-uri 'none'; frame-ancestors 'none';"
+    />
+    <title>MindVault</title>
+    <link rel="stylesheet" href="./css/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="shell-header">
+        <h1>MindVault</h1>
+        <p class="subtitle">Offline-first personal knowledge workspace</p>
+      </header>
+      <section class="status-card" aria-live="polite">
+        <h2>Local Backend Status</h2>
+        <p id="backend-status">Checking local backend...</p>
+        <p id="backend-url" class="meta"></p>
+      </section>
+    </main>
+    <script src="./js/app.js" defer></script>
+  </body>
+</html>
