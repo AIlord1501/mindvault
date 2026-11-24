@@ -197,6 +197,80 @@ class ChromaVectorStore:
                 results.append((str(cid), similarity))
             return results
 
+    def get_embeddings(
+        self,
+        chunk_ids: list[str],
+        batch_size: int = 200,
+    ) -> dict[str, list[float]]:
+        """Retrieve persisted embeddings for given chunk IDs without re-encoding."""
+        if not chunk_ids:
+            return {}
+        unique_ids = list(dict.fromkeys(chunk_ids))
+        safe_batch = max(1, int(batch_size))
+        vectors: dict[str, list[float]] = {}
+
+        with self._lock:
+            collection = self._ensure_collection()
+            if int(collection.count()) == 0:
+                return {}
+
+            for start in range(0, len(unique_ids), safe_batch):
+                batch = unique_ids[start : start + safe_batch]
+                raw = collection.get(ids=batch, include=["embeddings"])
+                ids = raw.get("ids") or []
+                embs = raw.get("embeddings")
+                if embs is None:
+                    continue
+                for idx, cid in enumerate(ids):
+                    if idx >= len(embs) or embs[idx] is None:
+                        continue
+                    emb_item = embs[idx]
+                    row_vec = emb_item.tolist() if hasattr(emb_item, "tolist") else list(emb_item)
+                    vectors[str(cid)] = [float(val) for val in row_vec]
+        return vectors
+
+    def query_neighbors(
+        self,
+        query_embeddings: list[list[float]],
+        top_k: int,
+        batch_size: int = 64,
+    ) -> list[list[tuple[str, float]]]:
+        """Batch HNSW neighbor lookup returning top_k (chunk_id, similarity) per query."""
+        if not query_embeddings or top_k <= 0:
+            return [[] for _ in query_embeddings]
+
+        safe_batch = max(1, int(batch_size))
+        results: list[list[tuple[str, float]]] = []
+
+        with self._lock:
+            collection = self._ensure_collection()
+            total = int(collection.count())
+            if total == 0:
+                return [[] for _ in query_embeddings]
+
+            n_results = min(int(top_k) + 1, total)
+            for start in range(0, len(query_embeddings), safe_batch):
+                batch_vecs = query_embeddings[start : start + safe_batch]
+                raw = collection.query(
+                    query_embeddings=batch_vecs,
+                    n_results=n_results,
+                    include=["distances"],
+                )
+                ids_batch = raw.get("ids") or []
+                dist_batch = raw.get("distances") or []
+                for q_idx in range(len(batch_vecs)):
+                    q_ids = ids_batch[q_idx] if q_idx < len(ids_batch) else []
+                    q_dists = dist_batch[q_idx] if q_idx < len(dist_batch) else []
+                    neighbors: list[tuple[str, float]] = []
+                    for n_idx, cid in enumerate(q_ids):
+                        dist = float(q_dists[n_idx]) if n_idx < len(q_dists) else 1.0
+                        sim = round(1.0 - dist, 6)
+                        if sim <= 0.0:
+                            continue
+                        neighbors.append((str(cid), sim))
+                    results.append(neighbors)
+        return results
+
     def close(self) -> None:
         """Stop ChromaDB local system handles cleanly on shutdown."""
         with self._lock:

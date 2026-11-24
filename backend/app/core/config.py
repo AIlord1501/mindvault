@@ -104,6 +104,10 @@ class Settings:
     contradiction_threshold: float = 0.70
     entailment_threshold: float = 0.70
     nli_model_path: str = ""
+    graph_similarity_threshold: float = 0.65
+    graph_max_neighbors_per_node: int = 8
+    graph_max_nodes: int = 500
+    graph_max_edges: int = 2000
     whisper_model_path: str = ""
     tesseract_cmd: str = ""
     offline_only: bool = True
@@ -185,6 +189,14 @@ class Settings:
             raise ValueError("contradiction_threshold must be in (0.0, 1.0].")
         if not (0.0 < self.entailment_threshold <= 1.0):
             raise ValueError("entailment_threshold must be in (0.0, 1.0].")
+        if not (0.0 < self.graph_similarity_threshold <= 1.0):
+            raise ValueError("graph_similarity_threshold must be in (0.0, 1.0].")
+        if not (1 <= self.graph_max_neighbors_per_node <= 50):
+            raise ValueError("graph_max_neighbors_per_node must be between 1 and 50.")
+        if not (1 <= self.graph_max_nodes <= 5000):
+            raise ValueError("graph_max_nodes must be between 1 and 5000.")
+        if not (1 <= self.graph_max_edges <= 20000):
+            raise ValueError("graph_max_edges must be between 1 and 20000.")
 
     def ensure_local_dirs(self) -> None:
         """Create required local storage directories if they do not exist."""
@@ -233,6 +245,10 @@ class Settings:
         contradiction_threshold = _parse_float("MINDVAULT_CONTRADICTION_THRESHOLD", 0.70)
         entailment_threshold = _parse_float("MINDVAULT_ENTAILMENT_THRESHOLD", 0.70)
         nli_model_path = os.getenv("MINDVAULT_NLI_MODEL_PATH", "").strip()
+        graph_similarity_threshold = _parse_float("MINDVAULT_GRAPH_SIMILARITY_THRESHOLD", 0.65)
+        graph_max_neighbors_per_node = _parse_int("MINDVAULT_GRAPH_MAX_NEIGHBORS_PER_NODE", 8)
+        graph_max_nodes = _parse_int("MINDVAULT_GRAPH_MAX_NODES", 500)
+        graph_max_edges = _parse_int("MINDVAULT_GRAPH_MAX_EDGES", 2000)
 
         data_dir = Path(os.getenv("MINDVAULT_DATA_DIR", "data")).expanduser()
         sqlite_path = Path(
@@ -301,6 +317,10 @@ class Settings:
             contradiction_threshold=contradiction_threshold,
             entailment_threshold=entailment_threshold,
             nli_model_path=nli_model_path,
+            graph_similarity_threshold=graph_similarity_threshold,
+            graph_max_neighbors_per_node=graph_max_neighbors_per_node,
+            graph_max_nodes=graph_max_nodes,
+            graph_max_edges=graph_max_edges,
             whisper_model_path=whisper_model_path,
             tesseract_cmd=tesseract_cmd,
             offline_only=offline_only,

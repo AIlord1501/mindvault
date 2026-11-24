@@ -380,6 +380,20 @@ class DocumentRepository:
             ).fetchall()
             return [str(row["id"]) for row in rows]
 
+    def get_belief_ids_for_document(self, doc_id: str) -> list[str]:
+        """Return all belief IDs associated with chunks of a document ID."""
+        with self._db.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT b.id
+                FROM beliefs b
+                INNER JOIN chunks c ON c.id = b.chunk_id
+                WHERE c.document_id = ?
+                """,
+                (doc_id,),
+            ).fetchall()
+            return [str(row["id"]) for row in rows]
+
     def count_indexed_documents_and_chunks(self) -> tuple[int, int]:
         """Return counts of indexed documents and chunks in SQLite."""
         with self._db.connection() as conn:
@@ -434,6 +448,48 @@ class DocumentRepository:
                 """,
                 rows_to_insert,
             )
+
+            query_node_id = f"query:{query_id}"
+            cites_edges = [
+                (uuid.uuid4().hex, query_node_id, cid, "cites", 1.0, created_at)
+                for cid in unique_chunk_ids
+            ]
+            conn.executemany(
+                """
+                INSERT INTO graph_edges (id, source_id, target_id, edge_type, weight, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (source_id, target_id, edge_type) DO UPDATE SET
+                    weight = excluded.weight,
+                    created_at = excluded.created_at
+                """,
+                cites_edges,
+            )
+
+            capped_ids = unique_chunk_ids[:25]
+            co_cited_edges: list[tuple[str, str, str, str, float, str]] = []
+            for i in range(len(capped_ids)):
+                for j in range(i + 1, len(capped_ids)):
+                    a, b = (
+                        (capped_ids[i], capped_ids[j])
+                        if capped_ids[i] < capped_ids[j]
+                        else (capped_ids[j], capped_ids[i])
+                    )
+                    co_cited_edges.append(
+                        (uuid.uuid4().hex, a, b, "co_cited", 1.0, created_at)
+                    )
+            if co_cited_edges:
+                conn.executemany(
+                    """
+                    INSERT INTO graph_edges (
+                        id, source_id, target_id, edge_type, weight, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (source_id, target_id, edge_type) DO UPDATE SET
+                        weight = graph_edges.weight + 1.0,
+                        created_at = excluded.created_at
+                    """,
+                    co_cited_edges,
+                )
         return records
 
     def list_citations_for_query(self, query_id: str) -> list[dict[str, Any]]:

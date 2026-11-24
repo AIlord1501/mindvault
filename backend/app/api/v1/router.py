@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict
 from app.api.health import router as health_router
 from app.api.v1.beliefs import router as beliefs_router
 from app.api.v1.chat import router as chat_router
+from app.api.v1.graph import router as graph_router
 from app.api.v1.ingestion import router as ingestion_router
 from app.api.v1.retrieval import router as retrieval_router
 
@@ -17,6 +18,7 @@ router = APIRouter()
 router.include_router(health_router)
 router.include_router(beliefs_router)
 router.include_router(chat_router)
+router.include_router(graph_router)
 router.include_router(ingestion_router)
 router.include_router(retrieval_router)
 

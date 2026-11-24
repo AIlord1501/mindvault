@@ -20,6 +20,7 @@ from app.ingestion.errors import (
 )
 
 if TYPE_CHECKING:
+    from app.graph.service import GraphService
     from app.retrieval.service import RetrievalService
 
 _SAFE_FILENAME_RE = re.compile(r"[^a-zA-Z0-9._-]+")
@@ -85,6 +86,7 @@ class IngestionPipeline:
         repo: DocumentRepository,
         registry: Optional[AdapterRegistry] = None,
         retrieval_service: Optional[RetrievalService] = None,
+        graph_service: Optional[GraphService] = None,
     ) -> None:
         self._settings = settings
         self._repo = repo
@@ -93,6 +95,7 @@ class IngestionPipeline:
             tesseract_cmd=settings.tesseract_cmd,
         )
         self._retrieval_service = retrieval_service
+        self._graph_service = graph_service
 
     def _store_in_vault(self, content: bytes, content_hash: str, safe_name: str) -> Path:
         """Persist raw bytes inside the managed vault directory."""
@@ -342,6 +345,14 @@ class IngestionPipeline:
             all_warnings.extend(index_warnings)
             progress.append("indexed_retrieval")
 
+        if self._graph_service is not None:
+            self._graph_service.on_document_indexed(
+                doc_id=doc_id,
+                filename=safe_name,
+                chunks=chunk_rows,
+            )
+            progress.append("indexed_graph")
+
         # 12. Return ingestion summary
         return IngestionResult(
             document_id=doc_id,
@@ -360,12 +371,15 @@ class IngestionPipeline:
     def delete_document_and_cleanup(self, doc_id: str) -> bool:
         """Delete document/chunks from SQLite and remove managed vault file if unreferenced."""
         chunk_ids = self._repo.get_chunk_ids_for_document(doc_id)
+        belief_ids = self._repo.get_belief_ids_for_document(doc_id)
         deleted, source_path, remaining_refs = self._repo.delete_document(doc_id)
         if not deleted:
             return False
 
         if self._retrieval_service is not None:
             self._retrieval_service.remove_document(doc_id, chunk_ids)
+        if self._graph_service is not None:
+            self._graph_service.remove_entities([doc_id] + chunk_ids + belief_ids)
 
         if source_path and remaining_refs == 0:
             raw_path = source_path.split("#", 1)[0]

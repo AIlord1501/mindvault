@@ -272,6 +272,14 @@ class BeliefRepository:
                     created_at,
                 ),
             )
+            self._upsert_graph_edge(
+                conn,
+                source_id=belief_id,
+                target_id=chunk_id,
+                edge_type="derived_from",
+                weight=float(confidence),
+                created_at=created_at,
+            )
             row = conn.execute(
                 """
                 SELECT b.*, c.document_id AS document_id, d.filename AS filename

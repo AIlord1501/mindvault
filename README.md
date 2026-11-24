@@ -116,6 +116,10 @@ All runtime paths and ports can be configured with environment variables:
 | `MINDVAULT_CONTRADICTION_THRESHOLD` | `0.70` | Minimum NLI contradiction probability to flag an open conflict |
 | `MINDVAULT_ENTAILMENT_THRESHOLD` | `0.70` | Minimum NLI entailment probability to record an entailment edge |
 | `MINDVAULT_NLI_MODEL_PATH` | `""` | Optional local NLI classifier path (`local_files_only`) |
+| `MINDVAULT_GRAPH_SIMILARITY_THRESHOLD` | `0.65` | Minimum cosine similarity for Concept Graph `similar_chunk` edges |
+| `MINDVAULT_GRAPH_MAX_NEIGHBORS_PER_NODE` | `8` | Maximum ANN candidate neighbors linked per chunk node |
+| `MINDVAULT_GRAPH_MAX_NODES` | `500` | Default maximum nodes returned per D3 graph query |
+| `MINDVAULT_GRAPH_MAX_EDGES` | `2000` | Default maximum edges returned per D3 graph query |
 | `MINDVAULT_WHISPER_MODEL_PATH` | `""` | Optional local Whisper model path (offline only) |
 | `MINDVAULT_TESSERACT_CMD` | `""` | Optional path to local Tesseract OCR binary |
 | `MINDVAULT_OFFLINE_ONLY` | `true` | Enforce offline-only runtime mode |

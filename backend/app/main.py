@@ -24,6 +24,8 @@ from app.core.logging import configure_logging, shutdown_logging
 from app.db.database import DatabaseManager
 from app.db.migrations import MigrationRunner
 from app.db.repositories import DocumentRepository
+from app.graph.repository import GraphRepository
+from app.graph.service import GraphService
 from app.ingestion.pipeline import IngestionPipeline
 from app.models.embeddings import BaseEmbeddingAdapter, SentenceTransformerEmbeddingAdapter
 from app.models.llm import BaseLLMProvider, create_llm_provider
@@ -77,11 +79,18 @@ def create_app(
             embedder=embedder,
         )
         synced_chunks = retrieval_service.sync_bm25_from_sqlite()
+        graph_repo = GraphRepository(db)
+        graph_service = GraphService(
+            settings=resolved_settings,
+            repo=graph_repo,
+            vector_store=vector_store,
+        )
 
         ingestion_pipeline = IngestionPipeline(
             settings=resolved_settings,
             repo=document_repo,
             retrieval_service=retrieval_service,
+            graph_service=graph_service,
         )
         resolved_llm = llm_provider or create_llm_provider(resolved_settings)
         chat_service = ChatService(
@@ -123,8 +132,10 @@ def create_app(
         application.state.migrations = migrations
         application.state.document_repo = document_repo
         application.state.belief_repo = belief_repo
+        application.state.graph_repo = graph_repo
         application.state.vector_store = vector_store
         application.state.retrieval_service = retrieval_service
+        application.state.graph_service = graph_service
         application.state.ingestion_pipeline = ingestion_pipeline
         application.state.llm_provider = resolved_llm
         application.state.chat_service = chat_service
