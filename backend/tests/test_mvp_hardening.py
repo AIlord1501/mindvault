@@ -12,9 +12,17 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.main import create_app
-from app.models.embeddings import BaseEmbeddingAdapter
+from app.models.embeddings import (
+    BaseEmbeddingAdapter,
+    SentenceTransformerEmbeddingAdapter,
+)
 from app.models.llm import BaseLLMProvider, CancelCheck
-from app.models.nli import BaseNLIAdapter, NLIScores
+from app.models.nli import (
+    BaseNLIAdapter,
+    HeuristicLexicalNLIAdapter,
+    LocalSequenceClassificationNLIAdapter,
+    NLIScores,
+)
 
 
 class _HardeningEmbedder(BaseEmbeddingAdapter):
@@ -267,3 +275,85 @@ def test_hardening_offline_guards_large_files_and_missing_models(tmp_path: Path)
         run_belief = client.post("/api/v1/jobs/belief_extraction/run")
         assert run_belief.status_code == 200
         assert run_belief.json()["status"] == "skipped"
+
+        # Whitespace-only note must fail with 422 empty_extracted_text instead of 0-chunk index.
+        blank_resp = client.post(
+            "/api/v1/ingest/file",
+            files={"file": ("blank.txt", b"   \n\t\r\n   ", "text/plain")},
+        )
+        assert blank_resp.status_code == 422
+        assert blank_resp.json()["status"] == "failed"
+        assert blank_resp.json()["error_code"] == "empty_extracted_text"
+        docs_after_blank = client.get("/api/v1/documents?status=indexed").json()
+        assert docs_after_blank["total"] == 0
+
+
+def test_audit_regressions_nli_offline_models_and_graph_prune(tmp_path: Path) -> None:
+    """Verify heuristic NLI precision, strict offline model paths, and dangling edge cleanup."""
+    nli = HeuristicLexicalNLIAdapter()
+    # Unrelated sentences sharing only one noun + negation must NOT trigger false contradiction.
+    unrelated = nli.predict_pairs(
+        [
+            ("SQLite supports concurrent readers.", "SQLite does not require external servers."),
+        ]
+    )[0]
+    assert unrelated.contradiction < 0.70
+
+    # True multi-token contradiction on the same claim triggers contradiction.
+    conflict = nli.predict_pairs(
+        [
+            (
+                "SQLite WAL improves read concurrency.",
+                "SQLite WAL never improves read concurrency.",
+            ),
+        ]
+    )[0]
+    assert conflict.contradiction >= 0.70
+
+    # Offline adapters must refuse uncached remote HuggingFace identifiers.
+    emb = SentenceTransformerEmbeddingAdapter(
+        model_name_or_path="sentence-transformers/all-MiniLM-L6-v2",
+        models_dir=tmp_path / "models",
+        offline_only=True,
+    )
+    ok_emb, msg_emb = emb.is_available()
+    assert ok_emb is False
+    assert "does not exist offline" in (msg_emb or "")
+
+    nli_cls = LocalSequenceClassificationNLIAdapter(
+        model_path="facebook/bart-large-mnli",
+        models_dir=tmp_path / "models",
+        offline_only=True,
+    )
+    ok_nli, msg_nli = nli_cls.is_available()
+    assert ok_nli is False
+    assert "does not exist offline" in (msg_nli or "")
+
+    # Deleting a document cited by a chat query must prune dangling query:* graph edges.
+    app = create_app(
+        _make_settings(tmp_path),
+        embedding_adapter=_HardeningEmbedder(),
+        llm_provider=_HardeningLLM(),
+        nli_adapter=_HardeningNLI(),
+    )
+    with TestClient(app) as client:
+        ingest = client.post(
+            "/api/v1/ingest/file",
+            files={
+                "file": (
+                    "prune.md",
+                    b"SQLite WAL ensures durable local storage.",
+                    "text/markdown",
+                )
+            },
+        )
+        doc_id = ingest.json()["document_id"]
+        assert client.post("/api/v1/chat", json={"query": "SQLite WAL durable"}).status_code == 200
+        assert client.post("/api/v1/graph/rebuild", json={}).status_code == 200
+        before_graph = client.get("/api/v1/graph/citations").json()
+        assert before_graph["stats"]["edge_count"] >= 1
+
+        assert client.delete(f"/api/v1/documents/{doc_id}").status_code == 200
+        with client.app.state.db.connection() as conn:
+            edge_cnt = conn.execute("SELECT COUNT(*) AS cnt FROM graph_edges").fetchone()["cnt"]
+            assert edge_cnt == 0

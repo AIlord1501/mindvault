@@ -644,6 +644,8 @@
         return;
       }
       const typeSel = this.doc.getElementById("graph-type-select");
+      const nodeSel = this.doc.getElementById("graph-node-type");
+      const edgeSel = this.doc.getElementById("graph-edge-type");
       const minEl = this.doc.getElementById("graph-epoch-min");
       const maxEl = this.doc.getElementById("graph-epoch-max");
       const searchEl = this.doc.getElementById("graph-search-input");
@@ -651,8 +653,33 @@
       const statsEl = this.doc.getElementById("graph-stats-bar");
 
       const graphType = typeSel ? typeSel.value : "concepts";
+      const validConceptNodes = new Set(["chunk", "belief"]);
+      const validCitationNodes = new Set(["document", "chunk", "query"]);
+      const validConceptEdges = new Set([
+        "similar_chunk",
+        "derived_from",
+        "contradicts",
+        "entails",
+        "supersedes"
+      ]);
+      const validCitationEdges = new Set([
+        "source_of",
+        "adjacent_chunk",
+        "cross_reference",
+        "cites",
+        "co_cited",
+        "similar_chunk"
+      ]);
+      const allowedNodes = graphType === "citations" ? validCitationNodes : validConceptNodes;
+      const allowedEdges = graphType === "citations" ? validCitationEdges : validConceptEdges;
       const endpoint = graphType === "citations" ? "/api/v1/graph/citations" : "/api/v1/graph/concepts";
       const params = new URLSearchParams();
+      if (nodeSel && nodeSel.value && allowedNodes.has(nodeSel.value)) {
+        params.set("node_type", nodeSel.value);
+      }
+      if (edgeSel && edgeSel.value && allowedEdges.has(edgeSel.value)) {
+        params.set("edge_type", edgeSel.value);
+      }
       if (minEl && minEl.value.trim()) {
         params.set("epoch_min", minEl.value.trim());
       }
@@ -846,17 +873,88 @@
               `${d.filename} (${d.file_type}, ${d.chunk_count} chunks)`
             )
           );
+          const actions = createEl(this.doc, "div", "brief-controls");
+          const inspectBtn = createEl(this.doc, "button", "btn-secondary", "Inspect Chunks");
+          inspectBtn.type = "button";
+          inspectBtn.setAttribute("data-inspect-doc", d.id);
+          inspectBtn.addEventListener("click", () => {
+            void this.inspectDocumentChunks(d.id);
+          });
           const delBtn = createEl(this.doc, "button", "btn-secondary", "Delete");
           delBtn.type = "button";
           delBtn.addEventListener("click", () => {
             void this.deleteDocument(d.id);
           });
-          item.appendChild(delBtn);
+          actions.appendChild(inspectBtn);
+          actions.appendChild(delBtn);
+          item.appendChild(actions);
           listEl.appendChild(item);
         });
       } catch (err) {
         listEl.replaceChildren(
           createEl(this.doc, "p", "muted", err ? err.message : "Failed to load documents.")
+        );
+      }
+    }
+
+    async inspectDocumentChunks(docId) {
+      const panel = this.doc && this.doc.getElementById("research-doc-inspector");
+      if (!panel) {
+        return;
+      }
+      panel.replaceChildren(createEl(this.doc, "p", "muted", "Loading document chunks..."));
+      try {
+        const docData = await this.apiRequest(`/api/v1/documents/${encodeURIComponent(docId)}`);
+        panel.replaceChildren();
+        panel.appendChild(
+          createEl(
+            this.doc,
+            "h3",
+            "inspector-title",
+            `${docData.filename} (${(docData.chunks || []).length} chunks)`
+          )
+        );
+        const chunks = Array.isArray(docData.chunks) ? docData.chunks : [];
+        if (chunks.length === 0) {
+          panel.appendChild(createEl(this.doc, "p", "muted", "No persisted chunks."));
+          return;
+        }
+        chunks.forEach((chk) => {
+          const box = createEl(this.doc, "div", "search-hit-card");
+          box.appendChild(
+            createEl(
+              this.doc,
+              "strong",
+              "",
+              `Chunk #${chk.chunk_index} (Epoch ${chk.epoch}, ${chk.token_count} tokens)`
+            )
+          );
+          box.appendChild(createEl(this.doc, "p", "muted", String(chk.content || "").slice(0, 260)));
+          const statusLine = createEl(this.doc, "div", "brief-meta", "");
+          const extractBtn = createEl(this.doc, "button", "btn-secondary", "Extract Beliefs");
+          extractBtn.type = "button";
+          extractBtn.setAttribute("data-extract-chunk", chk.id);
+          extractBtn.addEventListener("click", async () => {
+            statusLine.textContent = "Extracting beliefs via local LLM...";
+            try {
+              const res = await this.apiRequest(
+                `/api/v1/beliefs/extract/${encodeURIComponent(chk.id)}`,
+                { method: "POST", body: "{}" }
+              );
+              statusLine.textContent =
+                `Extracted ${res.extracted_count} belief(s), ` +
+                `${(res.contradictions || []).length} contradiction(s).`;
+            } catch (err) {
+              statusLine.textContent = err ? err.message : "Belief extraction unavailable.";
+            }
+          });
+          box.appendChild(extractBtn);
+          box.appendChild(statusLine);
+          panel.appendChild(box);
+        });
+      } catch (err) {
+        panel.replaceChildren(
+          createEl(this.doc, "p", "muted", err ? err.message : "Failed to inspect document.")
         );
       }
     }

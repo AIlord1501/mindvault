@@ -214,6 +214,9 @@ async def chat_stream(request: Request, payload: ChatRequest) -> StreamingRespon
                 if cancel_event.is_set():
                     break
                 event_queue.put((event_name, data))
+        except (LLMUnavailableError, EmbeddingUnavailableError) as exc:
+            event_queue.put(("error", {"code": "model_unavailable", "message": str(exc)}))
+            event_queue.put(("done", {"status": "error", "error": str(exc)}))
         except Exception as exc:
             event_queue.put(("error", {"code": "internal_error", "message": str(exc)}))
             event_queue.put(("done", {"status": "error", "error": str(exc)}))
@@ -243,6 +246,7 @@ async def chat_stream(request: Request, payload: ChatRequest) -> StreamingRespon
                 yield _format_sse_frame(str(event_name), data)  # type: ignore[arg-type]
         finally:
             cancel_event.set()
+            worker.join(timeout=1.0)
 
     return StreamingResponse(
         _sse_generator(),

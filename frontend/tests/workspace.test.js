@@ -197,6 +197,8 @@ function createWorkspaceDoc() {
     ["div", "chat-messages"],
     ["div", "chat-citation-viewer"],
     ["select", "graph-type-select"],
+    ["select", "graph-node-type"],
+    ["select", "graph-edge-type"],
     ["input", "graph-epoch-min"],
     ["input", "graph-epoch-max"],
     ["input", "graph-search-input"],
@@ -218,6 +220,7 @@ function createWorkspaceDoc() {
     ["div", "research-search-results"],
     ["button", "research-refresh-btn"],
     ["div", "research-documents-list"],
+    ["div", "research-doc-inspector"],
     ["button", "dashboard-brief-overlay-btn"],
     ["div", "morning-brief-overlay"],
     ["div", "brief-overlay-content"],
@@ -342,6 +345,27 @@ test("workspace handles SSE streaming, citations, Socratic mode, graph, and sett
         })
       };
     }
+    if (url.includes("/api/v1/documents/d1")) {
+      return {
+        ok: true,
+        json: async () => ({
+          id: "d1",
+          filename: "wal.md",
+          chunks: [{ id: "c1", chunk_index: 0, epoch: 1, token_count: 5, content: "WAL note." }]
+        })
+      };
+    }
+    if (url.includes("/api/v1/documents")) {
+      return {
+        ok: true,
+        json: async () => ({
+          documents: [{ id: "d1", filename: "wal.md", file_type: "markdown", chunk_count: 1 }]
+        })
+      };
+    }
+    if (url.includes("/api/v1/beliefs/extract/c1")) {
+      return { ok: true, json: async () => ({ extracted_count: 1, contradictions: [] }) };
+    }
     return { ok: true, json: async () => ({ documents: [], results: [] }) };
   };
 
@@ -359,10 +383,23 @@ test("workspace handles SSE streaming, citations, Socratic mode, graph, and sett
   pill.dispatchEvent({ type: "click" });
   assert.match(doc.getElementById("chat-citation-viewer").children[0].textContent, /wal\.md/);
 
+  doc.getElementById("graph-node-type").value = "chunk";
+  doc.getElementById("graph-edge-type").value = "derived_from";
   await ws.loadGraph();
   const graphEl = doc.getElementById("chart-knowledge-graph");
   assert.equal(graphEl.querySelectorAll("circle.graph-node").length, 3);
   assert.equal(graphEl.querySelectorAll("circle.orphan-node").length, 1);
+
+  await ws.loadDocuments();
+  const inspectBtn = doc.getElementById("research-documents-list").querySelector('[data-inspect-doc="d1"]');
+  assert.ok(inspectBtn);
+  inspectBtn.dispatchEvent({ type: "click" });
+  await new Promise((r) => setTimeout(r, 10));
+  const extractBtn = doc.getElementById("research-doc-inspector").querySelector('[data-extract-chunk="c1"]');
+  assert.ok(extractBtn);
+  extractBtn.dispatchEvent({ type: "click" });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.match(doc.getElementById("research-doc-inspector").querySelector("div.brief-meta").textContent, /Extracted 1 belief/);
 
   await ws.openMorningBriefOverlay(false);
   assert.equal(doc.getElementById("morning-brief-overlay").classList.contains("hidden"), false);

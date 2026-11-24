@@ -180,6 +180,32 @@
                   </select>
                 </label>
                 <label class="epoch-field">
+                  <span>Node Type</span>
+                  <select id="graph-node-type">
+                    <option value="" selected>All</option>
+                    <option value="chunk">Chunk</option>
+                    <option value="belief">Belief</option>
+                    <option value="document">Document</option>
+                    <option value="query">Query</option>
+                  </select>
+                </label>
+                <label class="epoch-field">
+                  <span>Edge Type</span>
+                  <select id="graph-edge-type">
+                    <option value="" selected>All</option>
+                    <option value="similar_chunk">Similar Chunk</option>
+                    <option value="derived_from">Derived From</option>
+                    <option value="contradicts">Contradicts</option>
+                    <option value="entails">Entails</option>
+                    <option value="supersedes">Supersedes</option>
+                    <option value="source_of">Source Of</option>
+                    <option value="adjacent_chunk">Adjacent Chunk</option>
+                    <option value="cross_reference">Cross Reference</option>
+                    <option value="cites">Cites</option>
+                    <option value="co_cited">Co-Cited</option>
+                  </select>
+                </label>
+                <label class="epoch-field">
                   <span>Epoch Min</span>
                   <input id="graph-epoch-min" type="number" min="0" placeholder="Any" />
                 </label>
@@ -445,6 +471,13 @@
               <h2>Indexed Vault Documents</h2>
               <div id="research-documents-list" class="documents-list-host"></div>
             </article>
+
+            <aside class="insight-card" aria-label="Document Chunk Inspector">
+              <h2>Document Chunks &amp; Belief Extraction</h2>
+              <div id="research-doc-inspector">
+                <p class="muted">Select 'Inspect Chunks' on any document above to view chunks and extract beliefs.</p>
+              </div>
+            </aside>
           </section>
 
           <section class="view-panel" data-panel="settings">

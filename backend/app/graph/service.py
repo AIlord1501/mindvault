@@ -159,11 +159,15 @@ class GraphService:
 
         # Also check existing chunks for outgoing links targeting the newly added filename.
         new_doc_lookup = _build_filename_lookup([{"id": doc_id, "filename": filename}])
+        target_stem = Path(filename).stem.lower()
         for existing_chunk in self._repo.list_indexed_chunks_for_rebuild():
             if existing_chunk["document_id"] == doc_id:
                 continue
+            raw_content = str(existing_chunk.get("content", ""))
+            if target_stem and target_stem not in raw_content.lower():
+                continue
             targets = extract_cross_reference_doc_ids(
-                str(existing_chunk.get("content", "")),
+                raw_content,
                 lookup_by_name=new_doc_lookup,
                 self_doc_id=str(existing_chunk["document_id"]),
             )
@@ -189,7 +193,9 @@ class GraphService:
 
     def remove_entities(self, entity_ids: list[str]) -> int:
         """Remove all graph edges referencing deleted documents, chunks, or beliefs."""
-        return self._repo.delete_edges_for_entities(entity_ids)
+        deleted = self._repo.delete_edges_for_entities(entity_ids)
+        pruned = self._repo.prune_dangling_edges()
+        return deleted + pruned
 
     def rebuild_graph(
         self,
