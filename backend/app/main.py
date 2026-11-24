@@ -20,9 +20,16 @@ from app.db.database import DatabaseManager
 from app.db.migrations import MigrationRunner
 from app.db.repositories import DocumentRepository
 from app.ingestion.pipeline import IngestionPipeline
+from app.models.embeddings import BaseEmbeddingAdapter, SentenceTransformerEmbeddingAdapter
+from app.retrieval.bm25_index import BM25Index
+from app.retrieval.service import RetrievalService
+from app.retrieval.vector_store import ChromaVectorStore
 
 
-def create_app(settings: Optional[Settings] = None) -> FastAPI:
+def create_app(
+    settings: Optional[Settings] = None,
+    embedding_adapter: Optional[BaseEmbeddingAdapter] = None,
+) -> FastAPI:
     """Create and configure the local MindVault FastAPI application."""
     resolved_settings = settings or Settings.from_env()
 
@@ -42,15 +49,38 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         migrations = MigrationRunner(db)
         newly_applied = migrations.apply_pending()
         document_repo = DocumentRepository(db)
+
+        embedder = embedding_adapter or SentenceTransformerEmbeddingAdapter(
+            model_name_or_path=resolved_settings.embedding_model,
+            models_dir=resolved_settings.models_dir,
+            offline_only=resolved_settings.offline_only,
+        )
+        vector_store = ChromaVectorStore(
+            persist_dir=resolved_settings.chroma_dir,
+            collection_name=resolved_settings.chroma_collection,
+        )
+        bm25_index = BM25Index()
+        retrieval_service = RetrievalService(
+            settings=resolved_settings,
+            repo=document_repo,
+            vector_store=vector_store,
+            bm25_index=bm25_index,
+            embedder=embedder,
+        )
+        synced_chunks = retrieval_service.sync_bm25_from_sqlite()
+
         ingestion_pipeline = IngestionPipeline(
             settings=resolved_settings,
             repo=document_repo,
+            retrieval_service=retrieval_service,
         )
 
         application.state.logger = logger
         application.state.db = db
         application.state.migrations = migrations
         application.state.document_repo = document_repo
+        application.state.vector_store = vector_store
+        application.state.retrieval_service = retrieval_service
         application.state.ingestion_pipeline = ingestion_pipeline
 
         logger.info(
@@ -60,8 +90,10 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
                 "host": resolved_settings.host,
                 "port": resolved_settings.port,
                 "sqlite_path": str(resolved_settings.sqlite_path),
+                "chroma_dir": str(resolved_settings.chroma_dir),
                 "applied_migrations": newly_applied,
                 "schema_version": migrations.current_version(),
+                "bm25_synced_chunks": synced_chunks,
                 "offline_only": resolved_settings.offline_only,
             },
         )
@@ -69,6 +101,7 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
             yield
         finally:
             logger.info("MindVault backend shutting down", extra={"event": "shutdown"})
+            vector_store.close()
             db.close()
             shutdown_logging()
 

@@ -68,13 +68,15 @@ MindVault is a single-user, offline-first desktop application composed of two lo
 - Exposes root `GET /health` and versioned `/api/v1` endpoints:
   - System: `GET /api/v1/health`, `GET /api/v1/system/status`
   - Ingestion & Documents: `POST /api/v1/ingest/file`, `POST /api/v1/ingest/batch`, `GET /api/v1/documents`, `GET /api/v1/documents/{id}`, `DELETE /api/v1/documents/{id}`
-- Local ingestion (`backend/app/ingestion`) validates file types and sizes, deduplicates by SHA-256 content hash, imports files into `MINDVAULT_VAULT_DIR`, extracts text via modular adapters (PyMuPDF for PDF, UTF-8 text/Markdown, optional Pillow+pytesseract OCR, optional offline Whisper with local model paths), normalizes untrusted text, and splits into boundary-aware overlapping chunks persisted atomically in SQLite.
+  - Retrieval & Indexing: `POST /api/v1/search`, `POST /api/v1/index/rebuild`, `GET /api/v1/index/status`
+- Local ingestion (`backend/app/ingestion`) validates file types and sizes, deduplicates by SHA-256 content hash, imports files into `MINDVAULT_VAULT_DIR`, extracts text via modular adapters (PyMuPDF for PDF, UTF-8 text/Markdown, optional Pillow+pytesseract OCR, optional offline Whisper with local model paths), normalizes untrusted text, splits into boundary-aware overlapping chunks persisted atomically in SQLite, and synchronizes chunk IDs into the retrieval indexes.
+- Offline hybrid retrieval (`backend/app/retrieval` & `backend/app/models/embeddings.py`) combines persistent ChromaDB cosine similarity search (with local sentence-transformer-compatible embeddings loaded with `HF_HUB_OFFLINE=1` / `local_files_only=True`) and `rank_bm25` (`BM25L`) lexical retrieval using weighted Reciprocal Rank Fusion (RRF) and optional deterministic phrase/coverage reranking. Metadata filters (`epoch_min`, `epoch_max`, `document_ids`, `file_types`) are enforced across both engines, and hybrid search degrades gracefully to BM25 when no local embedding model is available.
 
 ### 2.5 Persistence & Model Adapters
 - **SQLite (`backend/app/db`):** Managed by `DatabaseManager` (`WAL` mode, `foreign_keys = ON`, parameterized queries only) and `MigrationRunner` (versioned SQL migrations tracked with SHA-256 checksums in `schema_migrations`).
   - Core tables (`001_initial_schema.sql`): `documents`, `chunks`, `beliefs`, `contradictions`, `graph_edges`, `retention_scores`, `citations`, `morning_briefs`.
-- **ChromaDB (`backend/app/retrieval`):** Stores local embeddings on disk under the configured `MINDVAULT_CHROMA_DIR`.
-- **Local Models (`backend/app/models`):** Wraps local sentence-transformer-compatible embedding models and local LLM backends (`llama.cpp` GGUF or optional local Ollama). Unavailable or missing models must surface clear, structured status rather than crashing the application.
+- **ChromaDB (`backend/app/retrieval/vector_store.py`):** Stores local embeddings on disk under `MINDVAULT_CHROMA_DIR` with `anonymized_telemetry=False`, keyed by SQLite `chunks.id` for idempotent upserts and cascade-consistent deletions.
+- **Local Models (`backend/app/models`):** Wraps offline sentence-transformer-compatible embedding models (`SentenceTransformerEmbeddingAdapter`) and local LLM backends (`llama.cpp` GGUF or optional local Ollama). Unavailable or missing models surface clear, structured status rather than crashing or downloading weights at runtime.
 
 ## 3. Offline-First Guarantee
 

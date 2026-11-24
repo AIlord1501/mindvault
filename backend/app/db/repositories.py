@@ -48,6 +48,15 @@ def _row_to_chunk(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
+def _row_to_indexed_chunk(row: sqlite3.Row) -> dict[str, Any]:
+    item = _row_to_chunk(row)
+    item["filename"] = row["filename"]
+    item["file_type"] = row["file_type"]
+    item["source_path"] = row["source_path"]
+    item["content_hash"] = row["content_hash"]
+    return item
+
+
 class DocumentRepository:
     """Data-access layer for `documents` and `chunks` tables."""
 
@@ -258,3 +267,113 @@ class DocumentRepository:
             ).fetchone()
             remaining_refs = int(ref_row["cnt"]) if ref_row is not None else 0
             return True, source_path, remaining_refs
+
+    def list_indexed_chunks(
+        self,
+        *,
+        document_ids: Optional[list[str]] = None,
+        file_types: Optional[list[str]] = None,
+        epoch_min: Optional[int] = None,
+        epoch_max: Optional[int] = None,
+    ) -> list[dict[str, Any]]:
+        """Return indexed chunks joined with parent document metadata."""
+        if document_ids is not None and len(document_ids) == 0:
+            return []
+        if file_types is not None and len(file_types) == 0:
+            return []
+
+        where_clauses = ["d.status = 'indexed'"]
+        params: list[Any] = []
+
+        if document_ids:
+            placeholders = ", ".join("?" for _ in document_ids)
+            where_clauses.append(f"c.document_id IN ({placeholders})")
+            params.extend(document_ids)
+        if file_types:
+            placeholders = ", ".join("?" for _ in file_types)
+            where_clauses.append(f"d.file_type IN ({placeholders})")
+            params.extend(file_types)
+        if epoch_min is not None:
+            where_clauses.append("c.epoch >= ?")
+            params.append(int(epoch_min))
+        if epoch_max is not None:
+            where_clauses.append("c.epoch <= ?")
+            params.append(int(epoch_max))
+
+        where_sql = " AND ".join(where_clauses)
+        with self._db.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT
+                    c.*,
+                    d.filename AS filename,
+                    d.file_type AS file_type,
+                    d.source_path AS source_path,
+                    d.content_hash AS content_hash
+                FROM chunks c
+                INNER JOIN documents d ON d.id = c.document_id
+                WHERE {where_sql}
+                ORDER BY c.created_at ASC, c.chunk_index ASC
+                """,
+                tuple(params),
+            ).fetchall()
+            return [_row_to_indexed_chunk(row) for row in rows]
+
+    def get_chunks_by_ids(self, chunk_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Hydrate indexed chunks by chunk ID with parent document metadata."""
+        if not chunk_ids:
+            return {}
+
+        unique_ids = list(dict.fromkeys(chunk_ids))
+        result: dict[str, dict[str, Any]] = {}
+
+        # Batch IN clauses safely below SQLite's parameter limit.
+        with self._db.connection() as conn:
+            for start in range(0, len(unique_ids), 500):
+                batch = unique_ids[start : start + 500]
+                placeholders = ", ".join("?" for _ in batch)
+                rows = conn.execute(
+                    f"""
+                    SELECT
+                        c.*,
+                        d.filename AS filename,
+                        d.file_type AS file_type,
+                        d.source_path AS source_path,
+                        d.content_hash AS content_hash
+                    FROM chunks c
+                    INNER JOIN documents d ON d.id = c.document_id
+                    WHERE d.status = 'indexed' AND c.id IN ({placeholders})
+                    """,
+                    tuple(batch),
+                ).fetchall()
+                for row in rows:
+                    item = _row_to_indexed_chunk(row)
+                    result[item["id"]] = item
+        return result
+
+    def get_chunk_ids_for_document(self, doc_id: str) -> list[str]:
+        """Return all chunk IDs associated with a document ID."""
+        with self._db.connection() as conn:
+            rows = conn.execute(
+                "SELECT id FROM chunks WHERE document_id = ? ORDER BY chunk_index ASC",
+                (doc_id,),
+            ).fetchall()
+            return [str(row["id"]) for row in rows]
+
+    def count_indexed_documents_and_chunks(self) -> tuple[int, int]:
+        """Return counts of indexed documents and chunks in SQLite."""
+        with self._db.connection() as conn:
+            doc_row = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM documents WHERE status = 'indexed'"
+            ).fetchone()
+            chunk_row = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM chunks c
+                INNER JOIN documents d ON d.id = c.document_id
+                WHERE d.status = 'indexed'
+                """
+            ).fetchone()
+            docs = int(doc_row["cnt"]) if doc_row is not None else 0
+            chunks = int(chunk_row["cnt"]) if chunk_row is not None else 0
+            return docs, chunks

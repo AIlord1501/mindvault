@@ -79,6 +79,7 @@ All runtime paths and ports can be configured with environment variables:
 | `MINDVAULT_DATA_DIR` | `./data` | Root directory for local user data |
 | `MINDVAULT_SQLITE_PATH` | `<DATA_DIR>/mindvault.db` | SQLite metadata database path |
 | `MINDVAULT_CHROMA_DIR` | `<DATA_DIR>/chroma` | ChromaDB persistence directory |
+| `MINDVAULT_CHROMA_COLLECTION` | `mindvault_chunks` | ChromaDB collection name for chunk vectors |
 | `MINDVAULT_MODELS_DIR` | `<DATA_DIR>/models` | Local model directory (GGUF / embeddings) |
 | `MINDVAULT_VAULT_DIR` | `<DATA_DIR>/vault` | Managed local storage for ingested documents |
 | `MINDVAULT_LOGS_DIR` | `<DATA_DIR>/logs` | Local structured log directory |
@@ -88,7 +89,14 @@ All runtime paths and ports can be configured with environment variables:
 | `MINDVAULT_MAX_UPLOAD_SIZE_BYTES` | `52428800` | Maximum allowed file size per upload (50 MiB) |
 | `MINDVAULT_CHUNK_SIZE` | `1000` | Default target chunk size in characters |
 | `MINDVAULT_CHUNK_OVERLAP` | `150` | Default chunk overlap in characters |
-| `MINDVAULT_EMBEDDING_MODEL` | `""` | Optional local embedding model path/name |
+| `MINDVAULT_EMBEDDING_MODEL` | `""` | Optional local embedding model path/name (`local_files_only`) |
+| `MINDVAULT_EMBEDDING_BATCH_SIZE` | `32` | Batch size for local embedding generation and Chroma upserts |
+| `MINDVAULT_RETRIEVAL_TOP_K` | `10` | Default number of hybrid search results returned |
+| `MINDVAULT_RETRIEVAL_CANDIDATE_K` | `30` | Candidate pool size fetched from ChromaDB and BM25 before RRF |
+| `MINDVAULT_SEMANTIC_WEIGHT` | `0.6` | Weight assigned to semantic vector ranks in RRF fusion |
+| `MINDVAULT_BM25_WEIGHT` | `0.4` | Weight assigned to BM25 lexical ranks in RRF fusion |
+| `MINDVAULT_RRF_K` | `60` | Reciprocal Rank Fusion smoothing constant |
+| `MINDVAULT_RERANK_ENABLED` | `true` | Enable deterministic local phrase/coverage reranking |
 | `MINDVAULT_LLM_MODEL_PATH` | `""` | Optional local GGUF model file path |
 | `MINDVAULT_WHISPER_MODEL_PATH` | `""` | Optional local Whisper model path (offline only) |
 | `MINDVAULT_TESSERACT_CMD` | `""` | Optional path to local Tesseract OCR binary |

@@ -27,6 +27,14 @@ def _parse_int(env_name: str, default: int) -> int:
         raise ValueError(f"{env_name} must be an integer, got '{raw}'.") from exc
 
 
+def _parse_float(env_name: str, default: float) -> float:
+    raw = os.getenv(env_name, str(default)).strip()
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise ValueError(f"{env_name} must be a float, got '{raw}'.") from exc
+
+
 @dataclass(frozen=True)
 class Settings:
     """Runtime settings for the MindVault backend."""
@@ -39,6 +47,7 @@ class Settings:
     data_dir: Path = Path("data")
     sqlite_path: Path = Path("data/mindvault.db")
     chroma_dir: Path = Path("data/chroma")
+    chroma_collection: str = "mindvault_chunks"
     models_dir: Path = Path("data/models")
     logs_dir: Path = Path("data/logs")
     vault_dir: Path = Path("data/vault")
@@ -49,6 +58,13 @@ class Settings:
     chunk_size: int = 1000
     chunk_overlap: int = 150
     embedding_model: str = ""
+    embedding_batch_size: int = 32
+    retrieval_top_k: int = 10
+    retrieval_candidate_k: int = 30
+    semantic_weight: float = 0.6
+    bm25_weight: float = 0.4
+    rrf_k: int = 60
+    rerank_enabled: bool = True
     llm_model_path: str = ""
     whisper_model_path: str = ""
     tesseract_cmd: str = ""
@@ -70,6 +86,8 @@ class Settings:
             allowed = sorted(ALLOWED_LOG_LEVELS)
             raise ValueError(f"Invalid log_level '{self.log_level}'. Must be one of {allowed}.")
         object.__setattr__(self, "log_level", normalized_level)
+        if not self.chroma_collection.strip():
+            raise ValueError("chroma_collection must not be empty.")
         if self.sqlite_busy_timeout_ms < 0:
             raise ValueError("sqlite_busy_timeout_ms must be non-negative.")
         if self.max_upload_size_bytes <= 0:
@@ -78,6 +96,20 @@ class Settings:
             raise ValueError("chunk_size must be positive.")
         if self.chunk_overlap < 0 or self.chunk_overlap >= self.chunk_size:
             raise ValueError("chunk_overlap must be >= 0 and strictly less than chunk_size.")
+        if self.embedding_batch_size <= 0:
+            raise ValueError("embedding_batch_size must be positive.")
+        if self.retrieval_top_k <= 0:
+            raise ValueError("retrieval_top_k must be positive.")
+        if self.retrieval_candidate_k < 1:
+            raise ValueError("retrieval_candidate_k must be at least 1.")
+        if self.semantic_weight < 0.0:
+            raise ValueError("semantic_weight must be non-negative.")
+        if self.bm25_weight < 0.0:
+            raise ValueError("bm25_weight must be non-negative.")
+        if self.semantic_weight + self.bm25_weight <= 0.0:
+            raise ValueError("semantic_weight + bm25_weight must be greater than 0.")
+        if self.rrf_k < 1:
+            raise ValueError("rrf_k must be at least 1.")
 
     def ensure_local_dirs(self) -> None:
         """Create required local storage directories if they do not exist."""
@@ -97,6 +129,13 @@ class Settings:
         max_upload_size_bytes = _parse_int("MINDVAULT_MAX_UPLOAD_SIZE_BYTES", 50 * 1024 * 1024)
         chunk_size = _parse_int("MINDVAULT_CHUNK_SIZE", 1000)
         chunk_overlap = _parse_int("MINDVAULT_CHUNK_OVERLAP", 150)
+        embedding_batch_size = _parse_int("MINDVAULT_EMBEDDING_BATCH_SIZE", 32)
+        retrieval_top_k = _parse_int("MINDVAULT_RETRIEVAL_TOP_K", 10)
+        retrieval_candidate_k = _parse_int("MINDVAULT_RETRIEVAL_CANDIDATE_K", 30)
+        semantic_weight = _parse_float("MINDVAULT_SEMANTIC_WEIGHT", 0.6)
+        bm25_weight = _parse_float("MINDVAULT_BM25_WEIGHT", 0.4)
+        rrf_k = _parse_int("MINDVAULT_RRF_K", 60)
+        rerank_enabled = _parse_bool(os.getenv("MINDVAULT_RERANK_ENABLED", "true"), default=True)
 
         data_dir = Path(os.getenv("MINDVAULT_DATA_DIR", "data")).expanduser()
         sqlite_path = Path(
@@ -105,6 +144,7 @@ class Settings:
         chroma_dir = Path(
             os.getenv("MINDVAULT_CHROMA_DIR", str(data_dir / "chroma"))
         ).expanduser()
+        chroma_collection = os.getenv("MINDVAULT_CHROMA_COLLECTION", "mindvault_chunks").strip()
         models_dir = Path(
             os.getenv("MINDVAULT_MODELS_DIR", str(data_dir / "models"))
         ).expanduser()
@@ -129,6 +169,7 @@ class Settings:
             data_dir=data_dir,
             sqlite_path=sqlite_path,
             chroma_dir=chroma_dir,
+            chroma_collection=chroma_collection,
             models_dir=models_dir,
             logs_dir=logs_dir,
             vault_dir=vault_dir,
@@ -139,6 +180,13 @@ class Settings:
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             embedding_model=embedding_model,
+            embedding_batch_size=embedding_batch_size,
+            retrieval_top_k=retrieval_top_k,
+            retrieval_candidate_k=retrieval_candidate_k,
+            semantic_weight=semantic_weight,
+            bm25_weight=bm25_weight,
+            rrf_k=rrf_k,
+            rerank_enabled=rerank_enabled,
             llm_model_path=llm_model_path,
             whisper_model_path=whisper_model_path,
             tesseract_cmd=tesseract_cmd,

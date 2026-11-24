@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from app.core.config import Settings
 from app.db.repositories import DocumentRepository
@@ -18,6 +18,9 @@ from app.ingestion.errors import (
     FileSizeLimitError,
     IngestionError,
 )
+
+if TYPE_CHECKING:
+    from app.retrieval.service import RetrievalService
 
 _SAFE_FILENAME_RE = re.compile(r"[^a-zA-Z0-9._-]+")
 
@@ -81,6 +84,7 @@ class IngestionPipeline:
         settings: Settings,
         repo: DocumentRepository,
         registry: Optional[AdapterRegistry] = None,
+        retrieval_service: Optional[RetrievalService] = None,
     ) -> None:
         self._settings = settings
         self._repo = repo
@@ -88,6 +92,7 @@ class IngestionPipeline:
             whisper_model_path=settings.whisper_model_path,
             tesseract_cmd=settings.tesseract_cmd,
         )
+        self._retrieval_service = retrieval_service
 
     def _store_in_vault(self, content: bytes, content_hash: str, safe_name: str) -> Path:
         """Persist raw bytes inside the managed vault directory."""
@@ -326,6 +331,17 @@ class IngestionPipeline:
         )
         progress.append("persisted")
 
+        all_warnings = list(extracted.warnings)
+        if self._retrieval_service is not None:
+            index_warnings = self._retrieval_service.index_document_chunks(
+                doc_id=doc_id,
+                filename=safe_name,
+                file_type=extracted.file_type,
+                chunks=chunk_rows,
+            )
+            all_warnings.extend(index_warnings)
+            progress.append("indexed_retrieval")
+
         # 12. Return ingestion summary
         return IngestionResult(
             document_id=doc_id,
@@ -337,15 +353,19 @@ class IngestionPipeline:
             content_hash=content_hash,
             epoch=resolved_epoch,
             source_path=unique_source_path,
-            warnings=list(extracted.warnings),
+            warnings=all_warnings,
             progress=progress,
         )
 
     def delete_document_and_cleanup(self, doc_id: str) -> bool:
         """Delete document/chunks from SQLite and remove managed vault file if unreferenced."""
+        chunk_ids = self._repo.get_chunk_ids_for_document(doc_id)
         deleted, source_path, remaining_refs = self._repo.delete_document(doc_id)
         if not deleted:
             return False
+
+        if self._retrieval_service is not None:
+            self._retrieval_service.remove_document(doc_id, chunk_ids)
 
         if source_path and remaining_refs == 0:
             raw_path = source_path.split("#", 1)[0]

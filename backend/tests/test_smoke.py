@@ -23,6 +23,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
         "app.api",
         "app.api.health",
         "app.api.v1",
+        "app.api.v1.ingestion",
+        "app.api.v1.retrieval",
         "app.api.v1.router",
         "app.beliefs",
         "app.core",
@@ -31,11 +33,17 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
         "app.db",
         "app.db.database",
         "app.db.migrations",
+        "app.db.repositories",
         "app.graph",
         "app.ingestion",
         "app.main",
         "app.models",
+        "app.models.embeddings",
         "app.retrieval",
+        "app.retrieval.bm25_index",
+        "app.retrieval.service",
+        "app.retrieval.types",
+        "app.retrieval.vector_store",
         "app.scheduler",
     ],
 )
@@ -69,6 +77,7 @@ def test_health_endpoint_returns_ok(tmp_path: Path) -> None:
         chroma_dir=tmp_path / "chroma",
         models_dir=tmp_path / "models",
         logs_dir=tmp_path / "logs",
+        vault_dir=tmp_path / "vault",
     )
     app = create_app(settings)
     with TestClient(app) as client:
