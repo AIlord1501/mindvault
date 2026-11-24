@@ -267,6 +267,11 @@ class AudioWhisperAdapter(BaseExtractionAdapter):
                 language = getattr(info, "language", None)
                 duration = getattr(info, "duration", None)
             else:
+                if not model_path.is_file():
+                    raise AdapterUnavailableError(
+                        "openai-whisper requires a local checkpoint file path (.pt), got: "
+                        f"{model_path}"
+                    )
                 model = module.load_model(str(model_path), download_root=str(model_path.parent))
                 result = model.transcribe(str(file_path), fp16=False)
                 transcript = str(result.get("text", "")).strip()

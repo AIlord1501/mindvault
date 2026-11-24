@@ -77,9 +77,9 @@ class SentenceTransformerEmbeddingAdapter(BaseEmbeddingAdapter):
             or "\\" in self._raw_model
             or ":" in self._raw_model
         )
-        if looks_like_path:
+        if looks_like_path or (self._offline_only and self._loader is None):
             raise EmbeddingUnavailableError(
-                f"Configured local embedding model path does not exist: {self._raw_model}"
+                f"Configured local embedding model path does not exist offline: {self._raw_model}"
             )
 
         return self._raw_model

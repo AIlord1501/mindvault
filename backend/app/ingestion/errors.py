@@ -36,3 +36,9 @@ class AdapterUnavailableError(IngestionError):
     """Raised when an optional local extraction dependency or model is unavailable."""
 
     code = "adapter_unavailable"
+
+
+class EmptyExtractedTextError(IngestionError):
+    """Raised when extraction yields no usable text after normalization."""
+
+    code = "empty_extracted_text"

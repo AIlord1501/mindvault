@@ -15,6 +15,7 @@ from app.db.repositories import DocumentRepository
 from app.ingestion.adapters import AdapterRegistry
 from app.ingestion.chunker import chunk_text, normalize_text
 from app.ingestion.errors import (
+    EmptyExtractedTextError,
     FileSizeLimitError,
     IngestionError,
 )
@@ -292,23 +293,63 @@ class IngestionPipeline:
         if extracted.warnings:
             doc_metadata["warnings"] = extracted.warnings
 
-        # 6. Normalize text
+        # 6. Normalize text & 7. Split into chunks (reject zero-text documents cleanly)
         normalized = normalize_text(extracted.text)
         progress.append("normalized")
 
-        # 7, 8, 9. Chunk text with indices, epoch, and source metadata
         chunk_source_meta = {
             "filename": safe_name,
             "file_type": extracted.file_type,
             "source_path": unique_source_path,
             "content_hash": content_hash,
         }
-        chunks = chunk_text(
-            normalized,
-            chunk_size=resolved_chunk_size,
-            chunk_overlap=resolved_overlap,
-            source_metadata=chunk_source_meta,
+        chunks = (
+            chunk_text(
+                normalized,
+                chunk_size=resolved_chunk_size,
+                chunk_overlap=resolved_overlap,
+                source_metadata=chunk_source_meta,
+            )
+            if normalized
+            else []
         )
+        if not normalized or not chunks:
+            err = EmptyExtractedTextError(
+                f"Document '{safe_name}' contained no extractable text after normalization."
+            )
+            failed_at = datetime.now(timezone.utc).isoformat()
+            doc_metadata["error"] = str(err)
+            doc_metadata["error_code"] = err.code
+            self._repo.update_document_status(
+                doc_id=doc_id,
+                status="failed",
+                updated_at=failed_at,
+                metadata=doc_metadata,
+            )
+            vault_root = self._settings.vault_dir.resolve()
+            candidate = Path(source_path_str).resolve()
+            if (
+                vault_root in candidate.parents
+                and candidate.is_file()
+                and self._repo.find_indexed_by_hash(content_hash) is None
+            ):
+                try:
+                    candidate.unlink()
+                except OSError:
+                    pass
+            return IngestionResult(
+                document_id=doc_id,
+                filename=safe_name,
+                file_type=extracted.file_type,
+                status="failed",
+                content_hash=content_hash,
+                epoch=resolved_epoch,
+                source_path=unique_source_path,
+                error=str(err),
+                error_code=err.code,
+                warnings=list(extracted.warnings),
+                progress=progress,
+            )
         progress.append("chunked")
 
         # 10 & 11. Persist chunks and mark document indexed atomically

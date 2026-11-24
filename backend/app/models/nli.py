@@ -155,9 +155,9 @@ class LocalSequenceClassificationNLIAdapter(BaseNLIAdapter):
             or "\\" in self._raw_model
             or ":" in self._raw_model
         )
-        if looks_like_path:
+        if looks_like_path or (self._offline_only and self._loader is None):
             raise NLIUnavailableError(
-                f"Configured local NLI model path does not exist: {self._raw_model}"
+                f"Configured local NLI model path does not exist offline: {self._raw_model}"
             )
         return self._raw_model
 
@@ -303,9 +303,8 @@ class HeuristicLexicalNLIAdapter(BaseNLIAdapter):
         h_nums = set(_NUMBER_RE.findall(hypothesis))
         numeric_conflict = bool(p_nums and h_nums and p_nums != h_nums)
 
-        if (shared and (neg_flip or antonym_hit or numeric_conflict)) or (
-            overlap_ratio >= 0.25 and (neg_flip or antonym_hit)
-        ):
+        has_topic_overlap = len(shared) >= 2 or overlap_ratio >= 0.25
+        if has_topic_overlap and (neg_flip or antonym_hit or numeric_conflict):
             return NLIScores(contradiction=0.82, entailment=0.06, neutral=0.12)
 
         min_len = min(len(p_content), len(h_content)) or 1
