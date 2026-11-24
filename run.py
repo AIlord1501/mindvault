@@ -79,6 +79,7 @@ def main(argv: list[str] | None = None) -> int:
         port=settings.port,
         reload=args.reload,
         app_dir=str(BACKEND_DIR),
+        timeout_graceful_shutdown=5,
     )
     return 0
 

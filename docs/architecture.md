@@ -62,12 +62,14 @@ MindVault is a single-user, offline-first desktop application composed of two lo
 - Handles minimal IPC queries from the preload bridge.
 
 ### 2.4 Local Backend API (`backend/app/api`)
-- Bound **exclusively** to `127.0.0.1` (non-loopback hosts are rejected by configuration validation).
-- Validates all incoming payloads using Pydantic schemas.
-- Exposes REST endpoints for CRUD/queries and Server-Sent Events (SSE) for streaming long-running local jobs and LLM responses.
+- Bound **exclusively** to `127.0.0.1:8765` (non-loopback hosts are rejected by configuration validation).
+- Managed via FastAPI `lifespan` for local directory creation, SQLite initialization, transactional migrations, structured JSON logging, and graceful shutdown.
+- Validates all incoming payloads using Pydantic schemas and returns structured `422` validation errors.
+- Exposes root `GET /health` and versioned `/api/v1` endpoints (`GET /api/v1/health`, `GET /api/v1/system/status`), with future domain endpoints and SSE streams mounted under `/api/v1`.
 
 ### 2.5 Persistence & Model Adapters
-- **SQLite (`backend/app/db`):** Stores documents, chunks, beliefs, contradictions, retention schedules, and graph metadata using parameterized SQL queries only.
+- **SQLite (`backend/app/db`):** Managed by `DatabaseManager` (`WAL` mode, `foreign_keys = ON`, parameterized queries only) and `MigrationRunner` (versioned SQL migrations tracked with SHA-256 checksums in `schema_migrations`).
+  - Core tables (`001_initial_schema.sql`): `documents`, `chunks`, `beliefs`, `contradictions`, `graph_edges`, `retention_scores`, `citations`, `morning_briefs`.
 - **ChromaDB (`backend/app/retrieval`):** Stores local embeddings on disk under the configured `MINDVAULT_CHROMA_DIR`.
 - **Local Models (`backend/app/models`):** Wraps local sentence-transformer-compatible embedding models and local LLM backends (`llama.cpp` GGUF or optional local Ollama). Unavailable or missing models must surface clear, structured status rather than crashing the application.
 

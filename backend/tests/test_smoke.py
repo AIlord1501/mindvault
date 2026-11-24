@@ -22,10 +22,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
         "app",
         "app.api",
         "app.api.health",
+        "app.api.v1",
+        "app.api.v1.router",
         "app.beliefs",
         "app.core",
         "app.core.config",
+        "app.core.logging",
         "app.db",
+        "app.db.database",
+        "app.db.migrations",
         "app.graph",
         "app.ingestion",
         "app.main",
@@ -45,6 +50,7 @@ def test_settings_defaults_enforce_loopback_and_offline() -> None:
     settings = Settings()
     assert settings.host == "127.0.0.1"
     assert settings.port == 8765
+    assert settings.api_prefix == "/api/v1"
     assert settings.offline_only is True
 
 
@@ -55,20 +61,27 @@ def test_settings_reject_non_loopback_host(bad_host: str) -> None:
         Settings(host=bad_host)
 
 
-def test_health_endpoint_returns_ok() -> None:
-    """GET /health should return structured readiness metadata."""
-    app = create_app(Settings())
-    client = TestClient(app)
-
-    response = client.get("/health")
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload == {
-        "status": "ok",
-        "service": "mindvault-backend",
-        "version": "0.1.0",
-        "offline_only": True,
-    }
+def test_health_endpoint_returns_ok(tmp_path: Path) -> None:
+    """GET /health should return structured readiness metadata after lifespan startup."""
+    settings = Settings(
+        data_dir=tmp_path,
+        sqlite_path=tmp_path / "mindvault.db",
+        chroma_dir=tmp_path / "chroma",
+        models_dir=tmp_path / "models",
+        logs_dir=tmp_path / "logs",
+    )
+    app = create_app(settings)
+    with TestClient(app) as client:
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.json() == {
+            "status": "ok",
+            "service": "mindvault-backend",
+            "version": "0.1.0",
+            "offline_only": True,
+            "database": "ok",
+            "schema_version": 1,
+        }
 
 
 def test_launcher_check_mode() -> None:
