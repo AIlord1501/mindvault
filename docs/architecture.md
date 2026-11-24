@@ -53,13 +53,13 @@ MindVault is a single-user, offline-first desktop application composed of two lo
 
 ### 2.2 Preload Bridge (`frontend/preload.js`)
 - Exposes a minimal, frozen `window.mindvault` API via `contextBridge.exposeInMainWorld`.
-- Only permits explicitly whitelisted request/response IPC channels (e.g., application metadata and backend loopback URL).
-- Never exposes raw `ipcRenderer`, `fs`, `child_process`, or `require`.
+- Only permits explicitly whitelisted IPC operations: `getConfig`, `getBackendStatus`, `retryBackend`, `windowControl` (`minimize` | `maximize` | `close`), and `onBackendStatus` (with event stripping and unsubscribe).
+- Never exposes raw `ipcRenderer`, `fs`, `child_process`, shell execution, or `require`.
 
-### 2.3 Electron Main Process (`frontend/main.js`)
-- Creates and manages the application window.
-- Blocks external window creation (`setWindowOpenHandler` denies all) and blocks navigation away from local application files.
-- Handles minimal IPC queries from the preload bridge.
+### 2.3 Electron Main Process (`frontend/main.js` & `frontend/backendManager.js`)
+- Displays a frameless, sandboxed loading splash (`renderer/splash.html`) during startup and transitions to the frameless `1280x800` main window (`renderer/index.html`) once ready (or gracefully on backend startup failure).
+- Manages the local backend lifecycle via `BackendManager`: probes `http://127.0.0.1:8765/health` first, spawns `run.py` with `shell: false` only when no healthy backend is running, polls `/health` continuously, and terminates any managed child process cleanly on `before-quit`.
+- Blocks external window creation (`setWindowOpenHandler` denies all) and blocks navigation away from local `file://` application files.
 
 ### 2.4 Local Backend API (`backend/app/api`)
 - Bound **exclusively** to `127.0.0.1:8765` (non-loopback hosts are rejected by configuration validation).

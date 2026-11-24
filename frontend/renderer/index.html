@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,17 +11,233 @@
     <link rel="stylesheet" href="./css/styles.css" />
   </head>
   <body>
-    <main class="shell">
-      <header class="shell-header">
-        <h1>MindVault</h1>
-        <p class="subtitle">Offline-first personal knowledge workspace</p>
+    <div class="app-frame">
+      <header class="titlebar" role="banner">
+        <div class="titlebar-brand">
+          <span class="brand-badge" aria-hidden="true">MV</span>
+          <span class="brand-name">MindVault</span>
+        </div>
+
+        <button
+          id="command-palette-trigger"
+          class="palette-trigger no-drag"
+          type="button"
+          aria-haspopup="dialog"
+          aria-controls="command-palette"
+        >
+          <span>Command Palette</span>
+          <kbd>Ctrl+K</kbd>
+        </button>
+
+        <div class="titlebar-actions no-drag">
+          <button
+            id="theme-toggle"
+            class="icon-btn"
+            type="button"
+            title="Toggle light and dark theme"
+            aria-label="Toggle theme"
+          >
+            Dark
+          </button>
+          <div class="window-controls" role="group" aria-label="Window controls">
+            <button
+              class="win-btn"
+              type="button"
+              data-win-action="minimize"
+              aria-label="Minimize window"
+              title="Minimize"
+            >
+              &#8211;
+            </button>
+            <button
+              class="win-btn"
+              type="button"
+              data-win-action="maximize"
+              aria-label="Maximize or restore window"
+              title="Maximize"
+            >
+              &#9633;
+            </button>
+            <button
+              class="win-btn win-btn-close"
+              type="button"
+              data-win-action="close"
+              aria-label="Close window"
+              title="Close"
+            >
+              &#10005;
+            </button>
+          </div>
+        </div>
       </header>
-      <section class="status-card" aria-live="polite">
-        <h2>Local Backend Status</h2>
-        <p id="backend-status">Checking local backend...</p>
-        <p id="backend-url" class="meta"></p>
-      </section>
-    </main>
+
+      <div id="backend-banner" class="backend-banner hidden" role="alert">
+        <span id="backend-banner-text">Local backend is unavailable.</span>
+        <button id="banner-retry-btn" class="btn-secondary" type="button">Retry Backend</button>
+      </div>
+
+      <div class="workspace-body">
+        <aside class="sidebar" aria-label="Primary navigation">
+          <nav class="sidebar-nav">
+            <button class="nav-item active" type="button" data-view="chat" aria-current="page">
+              Chat
+            </button>
+            <button class="nav-item" type="button" data-view="graph">
+              Graph
+            </button>
+            <button class="nav-item" type="button" data-view="dashboard">
+              Dashboard
+            </button>
+            <button class="nav-item" type="button" data-view="research">
+              Research
+            </button>
+            <button class="nav-item" type="button" data-view="settings">
+              Settings
+            </button>
+          </nav>
+        </aside>
+
+        <main class="main-content" id="main-content" tabindex="-1">
+          <section class="view-panel active" data-panel="chat">
+            <div class="panel-header">
+              <h1>Chat</h1>
+              <p class="panel-subtitle">Local retrieval-grounded conversation workspace.</p>
+            </div>
+            <div class="placeholder-card">
+              <h2>Chat Workspace Not Yet Enabled</h2>
+              <p>
+                The desktop shell is ready. Document ingestion, retrieval, and local LLM chat will
+                be connected in upcoming milestones.
+              </p>
+            </div>
+          </section>
+
+          <section class="view-panel" data-panel="graph">
+            <div class="panel-header">
+              <h1>Graph</h1>
+              <p class="panel-subtitle">Interactive D3.js knowledge and belief graph.</p>
+            </div>
+            <div class="placeholder-card">
+              <h2>Knowledge Graph Not Yet Enabled</h2>
+              <p>
+                Entity and belief graph visualization will render here once ingestion and graph
+                projection endpoints are implemented.
+              </p>
+            </div>
+          </section>
+
+          <section class="view-panel" data-panel="dashboard">
+            <div class="panel-header">
+              <h1>Dashboard</h1>
+              <p class="panel-subtitle">Retention reviews, contradictions, and daily briefs.</p>
+            </div>
+            <div class="placeholder-card">
+              <h2>Dashboard Overview</h2>
+              <p>
+                Retention tracking, contradiction alerts, and morning briefs will appear here once
+                those backend services are implemented.
+              </p>
+            </div>
+          </section>
+
+          <section class="view-panel" data-panel="research">
+            <div class="panel-header">
+              <h1>Research</h1>
+              <p class="panel-subtitle">Local document library, citations, and belief timelines.</p>
+            </div>
+            <div class="placeholder-card">
+              <h2>Research Workspace Not Yet Enabled</h2>
+              <p>
+                Local document ingestion and citation exploration will be available here in future
+                milestones.
+              </p>
+            </div>
+          </section>
+
+          <section class="view-panel" data-panel="settings">
+            <div class="panel-header">
+              <h1>Settings</h1>
+              <p class="panel-subtitle">Appearance and local loopback runtime diagnostics.</p>
+            </div>
+
+            <div class="settings-grid">
+              <article class="settings-card">
+                <h2>Appearance</h2>
+                <p class="muted">Switch between dark and light themes locally.</p>
+                <div class="theme-options" role="group" aria-label="Theme selection">
+                  <button class="btn-secondary" type="button" data-set-theme="dark">
+                    Dark Theme
+                  </button>
+                  <button class="btn-secondary" type="button" data-set-theme="light">
+                    Light Theme
+                  </button>
+                </div>
+              </article>
+
+              <article class="settings-card">
+                <h2>Local Backend</h2>
+                <dl class="diagnostic-list">
+                  <div>
+                    <dt>Endpoint</dt>
+                    <dd id="settings-backend-url">http://127.0.0.1:8765</dd>
+                  </div>
+                  <div>
+                    <dt>State</dt>
+                    <dd id="settings-backend-state">Checking...</dd>
+                  </div>
+                  <div>
+                    <dt>Mode</dt>
+                    <dd id="settings-offline-mode">Offline-only (loopback)</dd>
+                  </div>
+                  <div>
+                    <dt>Schema Version</dt>
+                    <dd id="settings-schema-version">--</dd>
+                  </div>
+                </dl>
+                <button id="settings-retry-btn" class="btn-primary" type="button">
+                  Retry Local Backend
+                </button>
+              </article>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <footer class="statusbar" role="contentinfo">
+        <div class="status-left">
+          <span id="status-dot" class="status-dot dot-pending" aria-hidden="true"></span>
+          <span id="status-backend-text">Connecting to local backend...</span>
+        </div>
+        <div class="status-right">
+          <span id="status-view-label">View: Chat</span>
+          <span class="status-sep" aria-hidden="true">|</span>
+          <span id="status-endpoint">127.0.0.1:8765</span>
+          <span class="status-sep" aria-hidden="true">|</span>
+          <span id="status-theme-label">Theme: Dark</span>
+        </div>
+      </footer>
+    </div>
+
+    <div
+      id="command-palette"
+      class="palette-overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Command palette"
+    >
+      <div class="palette-dialog">
+        <input
+          id="palette-input"
+          class="palette-input"
+          type="text"
+          placeholder="Type a command or view name..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <ul id="palette-list" class="palette-list" role="listbox"></ul>
+      </div>
+    </div>
+
     <script src="./js/app.js" defer></script>
   </body>
 </html>

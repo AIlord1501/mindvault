@@ -117,6 +117,8 @@ cd frontend
 npm start
 ```
 
+The desktop shell opens a frameless `1280x800` window with a loading splash, sidebar navigation (`Chat`, `Graph`, `Dashboard`, `Research`, `Settings`), bottom status bar, light/dark themes, and a `Ctrl+K` command palette. If the local backend is not already running on `127.0.0.1:8765`, the Electron main process spawns `run.py` automatically (without a shell) and shuts it down cleanly on exit. Set `MINDVAULT_SKIP_BACKEND_SPAWN=1` to disable auto-spawning.
+
 ## Running Tests
 
 ### Backend tests
