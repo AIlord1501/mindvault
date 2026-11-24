@@ -34,6 +34,7 @@ from app.models.nli import BaseNLIAdapter, LocalSequenceClassificationNLIAdapter
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.service import RetrievalService
 from app.retrieval.vector_store import ChromaVectorStore
+from app.scheduler.background import BackgroundJobScheduler
 from app.scheduler.insights import VaultInsightsService
 from app.scheduler.models import BaseRetentionModel
 from app.scheduler.repository import RetentionRepository
@@ -64,6 +65,12 @@ def create_app(
             db_path=resolved_settings.sqlite_path,
             busy_timeout_ms=resolved_settings.sqlite_busy_timeout_ms,
         )
+        db_recovery = db.ensure_healthy_or_recover()
+        if db_recovery.get("recovered"):
+            logger.warning(
+                "Corrupted SQLite database quarantined and replaced cleanly",
+                extra={"event": "sqlite_recovery", **db_recovery},
+            )
         migrations = MigrationRunner(db)
         newly_applied = migrations.apply_pending()
         document_repo = DocumentRepository(db)
@@ -77,6 +84,12 @@ def create_app(
             persist_dir=resolved_settings.chroma_dir,
             collection_name=resolved_settings.chroma_collection,
         )
+        vector_recovery = vector_store.ensure_healthy_or_recover()
+        if vector_recovery.get("recovered"):
+            logger.warning(
+                "Corrupted Chroma vector index quarantined and recreated",
+                extra={"event": "vector_recovery", **vector_recovery},
+            )
         bm25_index = BM25Index()
         retrieval_service = RetrievalService(
             settings=resolved_settings,
@@ -86,6 +99,8 @@ def create_app(
             embedder=embedder,
         )
         synced_chunks = retrieval_service.sync_bm25_from_sqlite()
+        if vector_recovery.get("recovered") and synced_chunks > 0:
+            retrieval_service.rebuild_index()
         graph_repo = GraphRepository(db)
         graph_service = GraphService(
             settings=resolved_settings,
@@ -148,6 +163,16 @@ def create_app(
             retention_service=retention_service,
             belief_repo=belief_repo,
         )
+        job_scheduler = BackgroundJobScheduler(
+            db=db,
+            settings=resolved_settings,
+            retention_service=retention_service,
+            insights_service=insights_service,
+            belief_service=belief_service,
+            graph_service=graph_service,
+            logger=logger,
+        )
+        job_scheduler.start()
 
         application.state.logger = logger
         application.state.db = db
@@ -166,6 +191,11 @@ def create_app(
         application.state.retention_repo = retention_repo
         application.state.retention_service = retention_service
         application.state.insights_service = insights_service
+        application.state.job_scheduler = job_scheduler
+        application.state.recovery_info = {
+            "database": db_recovery,
+            "vector_store": vector_recovery,
+        }
 
         logger.info(
             "MindVault backend started",
@@ -179,6 +209,7 @@ def create_app(
                 "schema_version": migrations.current_version(),
                 "bm25_synced_chunks": synced_chunks,
                 "llm_provider": resolved_llm.provider_name,
+                "scheduler_backend": job_scheduler.backend_name,
                 "offline_only": resolved_settings.offline_only,
             },
         )
@@ -186,6 +217,7 @@ def create_app(
             yield
         finally:
             logger.info("MindVault backend shutting down", extra={"event": "shutdown"})
+            job_scheduler.shutdown(wait=True)
             vector_store.close()
             db.close()
             shutdown_logging()

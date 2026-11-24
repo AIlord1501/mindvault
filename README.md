@@ -46,7 +46,7 @@ MindVault/
 └── run.py                # Local backend launcher
 ```
 
-See [docs/architecture.md](docs/architecture.md) for detailed system boundaries and security architecture.
+See [docs/architecture.md](docs/architecture.md), [docs/installation.md](docs/installation.md), [docs/models.md](docs/models.md), [docs/troubleshooting.md](docs/troubleshooting.md), and [docs/release_checklist.md](docs/release_checklist.md).
 
 ## Installation
 
@@ -128,6 +128,11 @@ All runtime paths and ports can be configured with environment variables:
 | `MINDVAULT_RETENTION_FACTOR_HARD` | `1.20` | Stability multiplier on `hard` (rating `2`) |
 | `MINDVAULT_RETENTION_FACTOR_GOOD` | `2.20` | Base stability multiplier on `good` (rating `3`) |
 | `MINDVAULT_RETENTION_FACTOR_EASY` | `3.20` | Base stability multiplier on `easy` (rating `4`) |
+| `MINDVAULT_SCHEDULER_ENABLED` | `true` | Enable background job scheduler inside backend lifespan |
+| `MINDVAULT_JOB_BELIEF_INTERVAL_SECONDS` | `300` | Interval in seconds for background belief extraction jobs |
+| `MINDVAULT_JOB_BELIEF_BATCH_SIZE` | `5` | Maximum unextracted chunks processed per background belief job |
+| `MINDVAULT_JOB_RETENTION_INTERVAL_SECONDS` | `180` | Interval in seconds for background decay score recalculation |
+| `MINDVAULT_JOB_BRIEF_INTERVAL_SECONDS` | `600` | Interval in seconds for background daily Morning Brief synthesis |
 | `MINDVAULT_WHISPER_MODEL_PATH` | `""` | Optional local Whisper model path (offline only) |
 | `MINDVAULT_TESSERACT_CMD` | `""` | Optional path to local Tesseract OCR binary |
 | `MINDVAULT_OFFLINE_ONLY` | `true` | Enforce offline-only runtime mode |
@@ -154,7 +159,18 @@ Validate launcher configuration without starting the server:
 python run.py --check
 ```
 
-### Run the Electron desktop client
+### Run the Electron desktop client or unified Windows launcher
+
+```powershell
+# Start both backend (127.0.0.1:8765) and Electron desktop window cleanly:
+.\start.ps1
+
+# Validate config & full test suite:
+.\start.ps1 -Check
+
+# Run offline benchmark:
+python scripts/benchmark.py --quick
+```
 
 ```bash
 cd frontend

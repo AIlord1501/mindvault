@@ -99,31 +99,114 @@
 
         <main class="main-content" id="main-content" tabindex="-1">
           <section class="view-panel active" data-panel="chat">
-            <div class="panel-header">
-              <h1>Chat</h1>
-              <p class="panel-subtitle">Local retrieval-grounded conversation workspace.</p>
+            <div class="panel-header dashboard-header-row">
+              <div>
+                <h1>Chat</h1>
+                <p class="panel-subtitle">
+                  Local SSE streaming conversation with progressive disclosure and citation grounding.
+                </p>
+              </div>
+              <div class="chat-controls" role="region" aria-label="Chat query controls">
+                <label class="epoch-field">
+                  <span>Mode</span>
+                  <select id="chat-mode-select">
+                    <option value="brief">Brief</option>
+                    <option value="summary" selected>Summary</option>
+                    <option value="full">Full</option>
+                    <option value="socratic">Socratic</option>
+                  </select>
+                </label>
+                <label class="cat-checkbox">
+                  <input id="chat-socratic-toggle" type="checkbox" />
+                  <span>Socratic Mode</span>
+                </label>
+                <label class="epoch-field">
+                  <span>Epoch Min</span>
+                  <input id="chat-epoch-min" type="number" min="0" placeholder="Any" />
+                </label>
+                <label class="epoch-field">
+                  <span>Epoch Max</span>
+                  <input id="chat-epoch-max" type="number" min="0" placeholder="Any" />
+                </label>
+              </div>
             </div>
-            <div class="placeholder-card">
-              <h2>Chat Workspace Not Yet Enabled</h2>
-              <p>
-                The desktop shell is ready. Document ingestion, retrieval, and local LLM chat will
-                be connected in upcoming milestones.
-              </p>
+
+            <div class="chat-layout">
+              <div class="insight-card chat-main-pane">
+                <div id="chat-messages" class="chat-messages" role="log" aria-live="polite">
+                  <div class="chart-empty-state" data-state="empty">
+                    <strong class="empty-title">Ask your local MindVault</strong>
+                    <p class="empty-desc">
+                      Queries stream locally over loopback SSE and ground answers with chunk citations.
+                    </p>
+                  </div>
+                </div>
+                <form id="chat-query-form" class="chat-input-bar">
+                  <input
+                    id="chat-query-input"
+                    type="text"
+                    placeholder="Ask a question about your ingested notes..."
+                    autocomplete="off"
+                    aria-label="Chat query input"
+                  />
+                  <button id="chat-send-btn" class="btn-primary" type="submit">Ask Local AI</button>
+                  <button id="chat-cancel-btn" class="btn-secondary" type="button" disabled>
+                    Cancel
+                  </button>
+                </form>
+              </div>
+
+              <aside class="insight-card citation-viewer-pane" aria-label="Citation viewer">
+                <h2>Citation Viewer</h2>
+                <div id="chat-citation-viewer" class="citation-viewer-body">
+                  <p class="muted">Select any streamed citation pill to inspect its local chunk.</p>
+                </div>
+              </aside>
             </div>
           </section>
 
           <section class="view-panel" data-panel="graph">
-            <div class="panel-header">
-              <h1>Graph</h1>
-              <p class="panel-subtitle">Interactive D3.js knowledge and belief graph.</p>
+            <div class="panel-header dashboard-header-row">
+              <div>
+                <h1>Graph</h1>
+                <p class="panel-subtitle">Interactive D3.js Concept &amp; Citation graph (orphans visible).</p>
+              </div>
+              <div class="epoch-filter-bar" role="region" aria-label="Graph filters">
+                <label class="epoch-field">
+                  <span>Graph</span>
+                  <select id="graph-type-select">
+                    <option value="concepts" selected>Concept Graph</option>
+                    <option value="citations">Citation Graph</option>
+                  </select>
+                </label>
+                <label class="epoch-field">
+                  <span>Epoch Min</span>
+                  <input id="graph-epoch-min" type="number" min="0" placeholder="Any" />
+                </label>
+                <label class="epoch-field">
+                  <span>Epoch Max</span>
+                  <input id="graph-epoch-max" type="number" min="0" placeholder="Any" />
+                </label>
+                <label class="epoch-field">
+                  <span>Search</span>
+                  <input id="graph-search-input" type="text" placeholder="Filter label..." />
+                </label>
+                <button id="graph-refresh-btn" class="btn-secondary" type="button">Load Graph</button>
+                <button id="graph-rebuild-btn" class="btn-primary" type="button">Rebuild Graph</button>
+              </div>
             </div>
-            <div class="placeholder-card">
-              <h2>Knowledge Graph Not Yet Enabled</h2>
-              <p>
-                Entity and belief graph visualization will render here once ingestion and graph
-                projection endpoints are implemented.
-              </p>
+
+            <div class="insight-card">
+              <div id="graph-stats-bar" class="brief-meta">Ready</div>
+              <div id="chart-knowledge-graph" class="graph-canvas-host"></div>
             </div>
+
+            <aside class="insight-card" aria-label="Graph node inspector">
+              <h2>Graph Node Inspector</h2>
+              <div id="graph-inspector-body">
+                <p class="muted">Click any graph node or orphan vertex to inspect connections.</p>
+              </div>
+            </aside>
           </section>
 
           <section class="view-panel" data-panel="dashboard" aria-busy="false">
@@ -208,6 +291,9 @@
                   <button id="brief-regenerate-btn" class="btn-secondary" type="button">
                     Regenerate
                   </button>
+                  <button id="dashboard-brief-overlay-btn" class="btn-secondary" type="button">
+                    Open Overlay
+                  </button>
                 </div>
               </div>
               <div class="brief-categories" role="group" aria-label="Morning brief categories">
@@ -282,23 +368,96 @@
           </section>
 
           <section class="view-panel" data-panel="research">
-            <div class="panel-header">
-              <h1>Research</h1>
-              <p class="panel-subtitle">Local document library, citations, and belief timelines.</p>
+            <div class="panel-header dashboard-header-row">
+              <div>
+                <h1>Research &amp; Ingestion</h1>
+                <p class="panel-subtitle">
+                  Drag-and-drop local ingestion, indexed document library, and hybrid search.
+                </p>
+              </div>
+              <button id="research-refresh-btn" class="btn-secondary" type="button">
+                Refresh Library
+              </button>
             </div>
-            <div class="placeholder-card">
-              <h2>Research Workspace Not Yet Enabled</h2>
-              <p>
-                Local document ingestion and citation exploration will be available here in future
-                milestones.
-              </p>
+
+            <div class="dashboard-grid">
+              <article class="insight-card">
+                <h2>Local File &amp; Note Ingestion</h2>
+                <div
+                  id="ingest-dropzone"
+                  class="ingest-dropzone"
+                  role="region"
+                  aria-label="Drag and drop files to ingest locally"
+                >
+                  <p>Drop PDF, Markdown, TXT, Image, or Audio files here</p>
+                  <input
+                    id="ingest-file-input"
+                    class="hidden"
+                    type="file"
+                    multiple
+                    aria-label="Select local files to ingest"
+                  />
+                  <button id="ingest-browse-btn" class="btn-secondary" type="button">
+                    Choose Local Files
+                  </button>
+                </div>
+
+                <div class="quick-note-form">
+                  <label class="epoch-field">
+                    <span>Epoch</span>
+                    <input id="ingest-epoch-input" type="number" min="0" placeholder="Auto" />
+                  </label>
+                  <input
+                    id="ingest-note-title"
+                    type="text"
+                    placeholder="Filename (e.g. architecture_notes.md)"
+                    aria-label="Quick note filename"
+                  />
+                  <textarea
+                    id="ingest-note-content"
+                    rows="3"
+                    placeholder="Paste or type Markdown notes for local ingestion..."
+                    aria-label="Quick note content"
+                  ></textarea>
+                  <button id="ingest-submit-note-btn" class="btn-primary" type="button">
+                    Ingest Note Locally
+                  </button>
+                </div>
+                <div id="ingest-status" class="brief-meta" role="status" aria-live="polite"></div>
+              </article>
+
+              <article class="insight-card">
+                <h2>Hybrid Local Search</h2>
+                <div class="chat-input-bar">
+                  <input
+                    id="research-search-input"
+                    type="text"
+                    placeholder="Search chunks with RRF vector + BM25..."
+                    aria-label="Hybrid search query"
+                  />
+                  <button id="research-search-btn" class="btn-primary" type="button">Search</button>
+                </div>
+                <div id="research-search-results" class="search-results-host"></div>
+              </article>
             </div>
+
+            <article class="insight-card">
+              <h2>Indexed Vault Documents</h2>
+              <div id="research-documents-list" class="documents-list-host"></div>
+            </article>
           </section>
 
           <section class="view-panel" data-panel="settings">
-            <div class="panel-header">
-              <h1>Settings</h1>
-              <p class="panel-subtitle">Appearance and local loopback runtime diagnostics.</p>
+            <div class="panel-header dashboard-header-row">
+              <div>
+                <h1>Settings &amp; Diagnostics</h1>
+                <p class="panel-subtitle">
+                  Appearance, offline guarantee, local model status, index sync, and background jobs.
+                </p>
+              </div>
+              <button id="settings-refresh-diagnostics" class="btn-secondary" type="button">
+                Refresh Diagnostics
+              </button>
             </div>
 
             <div class="settings-grid">
@@ -316,7 +475,7 @@
               </article>
 
               <article class="settings-card">
-                <h2>Local Backend</h2>
+                <h2>Local Backend &amp; Offline Status</h2>
                 <dl class="diagnostic-list">
                   <div>
                     <dt>Endpoint</dt>
@@ -339,6 +498,30 @@
                   Retry Local Backend
                 </button>
               </article>
+
+              <article class="settings-card">
+                <h2>Model Status</h2>
+                <div id="settings-model-status" class="diag-list-block">
+                  <p class="muted">Checking local model adapters...</p>
+                </div>
+              </article>
+
+              <article class="settings-card">
+                <h2>Index Status</h2>
+                <div id="settings-index-status" class="diag-list-block">
+                  <p class="muted">Checking SQLite, BM25, and ChromaDB synchronization...</p>
+                </div>
+                <button id="settings-rebuild-index-btn" class="btn-secondary" type="button">
+                  Rebuild Indexes
+                </button>
+              </article>
+
+              <article class="settings-card">
+                <h2>APScheduler Background Jobs</h2>
+                <div id="settings-jobs-list" class="diag-list-block">
+                  <p class="muted">Loading scheduled background tasks...</p>
+                </div>
+              </article>
             </div>
           </section>
         </main>
@@ -348,6 +531,8 @@
         <div class="status-left">
           <span id="status-dot" class="status-dot dot-pending" aria-hidden="true"></span>
           <span id="status-backend-text">Connecting to local backend...</span>
+          <span class="status-sep" aria-hidden="true">|</span>
+          <span id="status-offline-badge">Offline-only</span>
         </div>
         <div class="status-right">
           <span id="status-view-label">View: Chat</span>
@@ -357,6 +542,27 @@
           <span id="status-theme-label">Theme: Dark</span>
         </div>
       </footer>
+    </div>
+
+    <div
+      id="morning-brief-overlay"
+      class="palette-overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Morning Brief Overlay"
+    >
+      <div class="palette-dialog brief-overlay-dialog">
+        <div class="card-header-row">
+          <h2>Daily Morning Brief</h2>
+          <div class="brief-controls">
+            <button id="brief-overlay-regenerate" class="btn-secondary" type="button">
+              Regenerate
+            </button>
+            <button id="brief-overlay-close" class="btn-primary" type="button">Close</button>
+          </div>
+        </div>
+        <div id="brief-overlay-content" class="brief-overlay-body"></div>
+      </div>
     </div>
 
     <div
@@ -381,6 +587,7 @@
 
     <script src="./js/d3-lite.js" defer></script>
     <script src="./js/dashboard.js" defer></script>
+    <script src="./js/workspace.js" defer></script>
     <script src="./js/app.js" defer></script>
   </body>
 </html>

@@ -1,0 +1,23 @@
+# MindVault MVP Release Checklist
+
+- [x] **Offline & Loopback Enforcement:** FastAPI binds strictly to `127.0.0.1:8765`; Electron CSP blocks remote scripts/connections; `OllamaProvider` enforces loopback URLs and disables env proxies (`trust_env=False`).
+- [x] **Electron Security:** `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`, minimal frozen `window.mindvault` preload bridge, zero `.innerHTML` in renderer JS, external windows/navigation blocked.
+- [x] **Complete Feature Integration (Zero Placeholders):**
+  - Local multi-format ingestion (PDF, MD, TXT, Image OCR, Whisper Audio + drag-and-drop UI)
+  - Persistent ChromaDB + BM25 hybrid retrieval with RRF fusion and metadata filtering
+  - Streaming local AI chat (SSE events, Socratic mode, progressive disclosure, citation viewer, cancellation)
+  - Belief evolution timeline, NLI contradiction detection, and manual resolution preserving lineage
+  - D3.js Concept & Citation knowledge graphs (O(n log n)/HNSW bounded edges + visible orphan nodes)
+  - Spaced repetition exponential decay ($R = \exp(-t / S)$) with self-recall flashcards & review history
+  - Dashboard (Belief Drift Timeline, Concept Velocity, Decay Heatmap, Health Radar, Flashcards, Contradiction Resolver) & Morning Brief synthesis + overlay
+  - Background job scheduler (`APScheduler` / embedded compat fallback) with status, pause/resume, run-now, and clean shutdown
+  - `Ctrl+K` Command Palette covering Navigation, Search, Ingestion, Query/Socratic Mode, Review, Overlay, and Settings
+- [x] **Hardening & Recovery:**
+  - `DatabaseManager.ensure_healthy_or_recover()` quarantines corrupt SQLite files
+  - `ChromaVectorStore.ensure_healthy_or_recover()` quarantines corrupt vector directories and rebuilds
+  - Upload size limit enforcement, path sanitization, and clean lifespan shutdown ordering
+- [x] **Packaging Configuration:** `frontend/package.json` configures `electron-builder` while excluding large model weights (`.gguf`, `.bin`, `.onnx`, `.safetensors`, `models/`, `data/`).
+- [x] **Quality Gates:**
+  - `python -m ruff check backend run.py scripts`
+  - `python scripts/dev_check.py` (Backend pytest + Frontend `npm run check` + Frontend `npm test`)
+  - `python scripts/benchmark.py --quick`

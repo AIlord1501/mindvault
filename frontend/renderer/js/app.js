@@ -27,6 +27,109 @@ function getCommands() {
       run: () => setActiveView("dashboard")
     },
     {
+      id: "nav-research",
+      label: "Go to Research & Ingestion",
+      hint: "Navigation",
+      run: () => setActiveView("research")
+    },
+    {
+      id: "nav-settings",
+      label: "Go to Settings",
+      hint: "Settings",
+      run: () => setActiveView("settings")
+    },
+    {
+      id: "query-focus",
+      label: "Ask Local AI Query",
+      hint: "Query",
+      run: () => {
+        setActiveView("chat");
+        const el = document.getElementById("chat-query-input");
+        if (el) {
+          el.focus();
+        }
+      }
+    },
+    {
+      id: "query-socratic",
+      label: "Start Socratic Mode Query",
+      hint: "Query",
+      run: () => {
+        setActiveView("chat");
+        const sel = document.getElementById("chat-mode-select");
+        const tog = document.getElementById("chat-socratic-toggle");
+        if (sel) {
+          sel.value = "socratic";
+        }
+        if (tog) {
+          tog.checked = true;
+        }
+        const el = document.getElementById("chat-query-input");
+        if (el) {
+          el.focus();
+        }
+      }
+    },
+    {
+      id: "ingest-open",
+      label: "Ingest Local Files or Notes",
+      hint: "Ingestion",
+      run: () => {
+        setActiveView("research");
+        const el = document.getElementById("ingest-note-title");
+        if (el) {
+          el.focus();
+        }
+      }
+    },
+    {
+      id: "research-search",
+      label: "Search Vault Chunks (Hybrid RRF)",
+      hint: "Search",
+      run: () => {
+        setActiveView("research");
+        const el = document.getElementById("research-search-input");
+        if (el) {
+          el.focus();
+        }
+      }
+    },
+    {
+      id: "review-flashcards",
+      label: "Review Spaced-Repetition Flashcards",
+      hint: "Review",
+      run: () => {
+        setActiveView("dashboard");
+        const el = document.querySelector('[data-dashboard-view="flashcards"]');
+        if (el && typeof el.scrollIntoView === "function") {
+          el.scrollIntoView({ behavior: "smooth" });
+        }
+      }
+    },
+    {
+      id: "review-contradictions",
+      label: "Review Open Contradictions",
+      hint: "Review",
+      run: () => {
+        setActiveView("dashboard");
+        const el = document.querySelector('[data-dashboard-view="contradictions"]');
+        if (el && typeof el.scrollIntoView === "function") {
+          el.scrollIntoView({ behavior: "smooth" });
+        }
+      }
+    },
+    {
+      id: "dashboard-brief-overlay",
+      label: "Open Morning Brief Overlay",
+      hint: "Dashboard",
+      run: () => {
+        if (window.MindVaultWorkspace) {
+          const ws = window.MindVaultWorkspace.initWorkspace();
+          void ws.openMorningBriefOverlay(false);
+        }
+      }
+    },
+    {
       id: "dashboard-brief",
       label: "Generate Morning Brief",
       hint: "Dashboard",
@@ -39,16 +142,16 @@ function getCommands() {
       }
     },
     {
-      id: "nav-research",
-      label: "Go to Research",
-      hint: "Navigation",
-      run: () => setActiveView("research")
-    },
-    {
-      id: "nav-settings",
-      label: "Go to Settings",
-      hint: "Navigation",
-      run: () => setActiveView("settings")
+      id: "settings-rebuild-index",
+      label: "Rebuild Hybrid Search Indexes",
+      hint: "Settings",
+      run: () => {
+        setActiveView("settings");
+        if (window.MindVaultWorkspace) {
+          const ws = window.MindVaultWorkspace.initWorkspace();
+          void ws.rebuildIndex();
+        }
+      }
     },
     {
       id: "theme-toggle",
@@ -95,6 +198,16 @@ function setActiveView(viewName) {
   if (viewName === "dashboard" && window.MindVaultDashboard) {
     const ctrl = window.MindVaultDashboard.initDashboard();
     void ctrl.refresh();
+  }
+  if (window.MindVaultWorkspace) {
+    const ws = window.MindVaultWorkspace.initWorkspace();
+    if (viewName === "graph") {
+      void ws.loadGraph();
+    } else if (viewName === "research") {
+      void ws.loadDocuments();
+    } else if (viewName === "settings") {
+      void ws.loadSystemDiagnostics();
+    }
   }
 }
 
@@ -331,6 +444,9 @@ function wireEvents() {
     }
 
     if (!paletteOpen) {
+      if (event.key === "Escape" && window.MindVaultWorkspace) {
+        window.MindVaultWorkspace.initWorkspace().closeMorningBriefOverlay();
+      }
       return;
     }
 
@@ -376,18 +492,35 @@ async function initDesktopShell() {
 
   try {
     const cfg = await window.mindvault.getConfig();
+    const resolvedBackendUrl = cfg && cfg.backendUrl ? cfg.backendUrl : "http://127.0.0.1:8765";
     if (window.MindVaultDashboard) {
       window.MindVaultDashboard.initDashboard({
-        backendUrl: cfg && cfg.backendUrl ? cfg.backendUrl : "http://127.0.0.1:8765"
+        backendUrl: resolvedBackendUrl
+      });
+    }
+    if (window.MindVaultWorkspace) {
+      window.MindVaultWorkspace.initWorkspace({
+        backendUrl: resolvedBackendUrl,
+        onAfterMutate: () => {
+          if (window.MindVaultDashboard && activeView === "dashboard") {
+            void window.MindVaultDashboard.initDashboard().refresh();
+          }
+        }
       });
     }
     if (typeof window.mindvault.onBackendStatus === "function") {
       window.mindvault.onBackendStatus((status) => {
         renderBackendStatus(status);
+        if (status && status.healthy && window.MindVaultWorkspace) {
+          void window.MindVaultWorkspace.initWorkspace().loadSystemDiagnostics();
+        }
       });
     }
     const status = await window.mindvault.getBackendStatus();
     renderBackendStatus(status);
+    if (status && status.healthy && window.MindVaultWorkspace) {
+      void window.MindVaultWorkspace.initWorkspace().loadSystemDiagnostics();
+    }
   } catch (err) {
     renderBackendStatus({
       state: "failed",

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 import chromadb
+from chromadb.api.client import SharedSystemClient
 from chromadb.config import Settings as ChromaSettings
 
 from app.retrieval.types import SearchFilters
@@ -56,14 +59,77 @@ class ChromaVectorStore:
         self._lock = threading.RLock()
         self._client: Any = None
         self._collection: Any = None
+        self.recovered_from_corruption: bool = False
+        self.quarantined_dir: Optional[str] = None
 
-    def _ensure_collection(self) -> Any:
+    def _release_shared_systems(self) -> None:
+        """Stop and evict cached Chroma SharedSystemClient entries targeting persist_dir."""
+        target_raw = str(self._persist_dir)
+        try:
+            target_resolved = str(self._persist_dir.resolve())
+        except OSError:
+            target_resolved = target_raw
+
+        cache = getattr(SharedSystemClient, "_identifer_to_system", {})
+        for key in list(cache.keys()):
+            try:
+                key_resolved = str(Path(key).resolve()) if key else ""
+            except OSError:
+                key_resolved = str(key)
+            if key == target_raw or key_resolved == target_resolved:
+                system = cache.pop(key, None)
+                stop_fn = getattr(system, "stop", None)
+                if callable(stop_fn):
+                    try:
+                        stop_fn()
+                    except Exception:
+                        pass
+            self._release_shared_systems()
+
+    def _quarantine_corrupt_dir(self) -> Optional[str]:
+        """Stop active Chroma client and move corrupted persist directory aside."""
+        client = self._client
+        self._collection = None
+        self._client = None
+        if client is not None:
+            system = getattr(client, "_system", None)
+            stop_fn = getattr(system, "stop", None)
+            if callable(stop_fn):
+                try:
+                    stop_fn()
+                except Exception:
+                    pass
+        self._release_shared_systems()
+
+        if not self._persist_dir.exists():
+            return None
+
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        backup_dir = self._persist_dir.with_name(f"{self._persist_dir.name}_corrupt_{stamp}")
+        try:
+            self._persist_dir.replace(backup_dir)
+        except OSError:
+            shutil.copytree(self._persist_dir, backup_dir, dirs_exist_ok=True)
+            shutil.rmtree(self._persist_dir, ignore_errors=True)
+        self.recovered_from_corruption = True
+        self.quarantined_dir = str(backup_dir)
+        return str(backup_dir)
+
+    def ensure_healthy_or_recover(self) -> dict[str, Any]:
+        """Probe Chroma vector collection health and recreate directory if corrupted."""
         with self._lock:
-            if self._collection is not None:
-                return self._collection
-
-            self._persist_dir.mkdir(parents=True, exist_ok=True)
-            if self._client is None:
+            try:
+                col = self._ensure_collection()
+                _ = int(col.count())
+                return {
+                    "healthy": True,
+                    "recovered": self.recovered_from_corruption,
+                    "quarantined_dir": self.quarantined_dir,
+                    "error": None,
+                }
+            except Exception as exc:
+                quarantined = self._quarantine_corrupt_dir()
+                self._persist_dir.mkdir(parents=True, exist_ok=True)
                 self._client = chromadb.PersistentClient(
                     path=str(self._persist_dir),
                     settings=ChromaSettings(
@@ -71,10 +137,51 @@ class ChromaVectorStore:
                         allow_reset=True,
                     ),
                 )
-            self._collection = self._client.get_or_create_collection(
-                name=self._collection_name,
-                metadata={"hnsw:space": "cosine"},
-            )
+                self._collection = self._client.get_or_create_collection(
+                    name=self._collection_name,
+                    metadata={"hnsw:space": "cosine"},
+                )
+                return {
+                    "healthy": True,
+                    "recovered": True,
+                    "quarantined_dir": quarantined,
+                    "error": str(exc),
+                }
+
+    def _ensure_collection(self) -> Any:
+        with self._lock:
+            if self._collection is not None:
+                return self._collection
+
+            self._persist_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                if self._client is None:
+                    self._client = chromadb.PersistentClient(
+                        path=str(self._persist_dir),
+                        settings=ChromaSettings(
+                            anonymized_telemetry=False,
+                            allow_reset=True,
+                        ),
+                    )
+                self._collection = self._client.get_or_create_collection(
+                    name=self._collection_name,
+                    metadata={"hnsw:space": "cosine"},
+                )
+                _ = int(self._collection.count())
+            except Exception:
+                self._quarantine_corrupt_dir()
+                self._persist_dir.mkdir(parents=True, exist_ok=True)
+                self._client = chromadb.PersistentClient(
+                    path=str(self._persist_dir),
+                    settings=ChromaSettings(
+                        anonymized_telemetry=False,
+                        allow_reset=True,
+                    ),
+                )
+                self._collection = self._client.get_or_create_collection(
+                    name=self._collection_name,
+                    metadata={"hnsw:space": "cosine"},
+                )
             return self._collection
 
     def upsert_chunks(
@@ -285,3 +392,4 @@ class ChromaVectorStore:
                         stop_fn()
                     except Exception:
                         pass
+            self._release_shared_systems()

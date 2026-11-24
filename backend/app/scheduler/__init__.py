@@ -1,5 +1,6 @@
 ﻿"""Retention tracking, spaced repetition, and review scheduling package."""
 
+from app.scheduler.background import BackgroundJobScheduler, JobNotFoundError
 from app.scheduler.insights import BRIEF_CATEGORIES, VaultInsightsService
 from app.scheduler.models import (
     OUTCOME_TO_RATING,
@@ -16,9 +17,11 @@ __all__ = [
     "BRIEF_CATEGORIES",
     "OUTCOME_TO_RATING",
     "RATING_TO_OUTCOME",
+    "BackgroundJobScheduler",
     "BaseRetentionModel",
     "ChunkNotFoundForReviewError",
     "ExponentialDecayRetentionModel",
+    "JobNotFoundError",
     "RetentionRepository",
     "RetentionService",
     "ReviewOutcome",

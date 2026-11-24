@@ -116,6 +116,11 @@ class Settings:
     retention_factor_hard: float = 1.20
     retention_factor_good: float = 2.20
     retention_factor_easy: float = 3.20
+    scheduler_enabled: bool = True
+    job_belief_interval_seconds: int = 300
+    job_belief_batch_size: int = 5
+    job_retention_interval_seconds: int = 180
+    job_brief_interval_seconds: int = 600
     whisper_model_path: str = ""
     tesseract_cmd: str = ""
     offline_only: bool = True
@@ -227,6 +232,14 @@ class Settings:
             raise ValueError("retention_factor_good must be >= retention_factor_hard.")
         if self.retention_factor_easy < self.retention_factor_good:
             raise ValueError("retention_factor_easy must be >= retention_factor_good.")
+        if self.job_belief_interval_seconds < 10:
+            raise ValueError("job_belief_interval_seconds must be at least 10.")
+        if not (1 <= self.job_belief_batch_size <= 50):
+            raise ValueError("job_belief_batch_size must be between 1 and 50.")
+        if self.job_retention_interval_seconds < 10:
+            raise ValueError("job_retention_interval_seconds must be at least 10.")
+        if self.job_brief_interval_seconds < 10:
+            raise ValueError("job_brief_interval_seconds must be at least 10.")
 
     def ensure_local_dirs(self) -> None:
         """Create required local storage directories if they do not exist."""
@@ -296,6 +309,20 @@ class Settings:
         retention_factor_hard = _parse_float("MINDVAULT_RETENTION_FACTOR_HARD", 1.20)
         retention_factor_good = _parse_float("MINDVAULT_RETENTION_FACTOR_GOOD", 2.20)
         retention_factor_easy = _parse_float("MINDVAULT_RETENTION_FACTOR_EASY", 3.20)
+        scheduler_enabled = _parse_bool(
+            os.getenv("MINDVAULT_SCHEDULER_ENABLED", "true"),
+            default=True,
+        )
+        job_belief_interval_seconds = _parse_int(
+            "MINDVAULT_JOB_BELIEF_INTERVAL_SECONDS",
+            300,
+        )
+        job_belief_batch_size = _parse_int("MINDVAULT_JOB_BELIEF_BATCH_SIZE", 5)
+        job_retention_interval_seconds = _parse_int(
+            "MINDVAULT_JOB_RETENTION_INTERVAL_SECONDS",
+            180,
+        )
+        job_brief_interval_seconds = _parse_int("MINDVAULT_JOB_BRIEF_INTERVAL_SECONDS", 600)
 
         data_dir = Path(os.getenv("MINDVAULT_DATA_DIR", "data")).expanduser()
         sqlite_path = Path(
@@ -376,6 +403,11 @@ class Settings:
             retention_factor_hard=retention_factor_hard,
             retention_factor_good=retention_factor_good,
             retention_factor_easy=retention_factor_easy,
+            scheduler_enabled=scheduler_enabled,
+            job_belief_interval_seconds=job_belief_interval_seconds,
+            job_belief_batch_size=job_belief_batch_size,
+            job_retention_interval_seconds=job_retention_interval_seconds,
+            job_brief_interval_seconds=job_brief_interval_seconds,
             whisper_model_path=whisper_model_path,
             tesseract_cmd=tesseract_cmd,
             offline_only=offline_only,

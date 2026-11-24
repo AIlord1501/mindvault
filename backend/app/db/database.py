@@ -5,8 +5,9 @@ from __future__ import annotations
 import sqlite3
 import threading
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 
 class DatabaseManager:
@@ -18,6 +19,8 @@ class DatabaseManager:
         self._lock = threading.Lock()
         self._connections: set[sqlite3.Connection] = set()
         self._closed = False
+        self.recovered_from_corruption: bool = False
+        self.quarantined_path: Optional[str] = None
 
     @property
     def db_path(self) -> Path:
@@ -89,6 +92,65 @@ class DatabaseManager:
                 return (row is not None and row["ok"] == 1), None
         except sqlite3.Error as exc:
             return False, str(exc)
+
+    def ensure_healthy_or_recover(self) -> dict[str, Any]:
+        """Verify SQLite integrity via quick_check, quarantining and replacing corrupt DBs."""
+        is_memory = str(self._db_path) == ":memory:"
+        if is_memory or not self._db_path.exists():
+            return {
+                "healthy": True,
+                "recovered": False,
+                "quarantined_path": None,
+                "error": None,
+            }
+
+        failure_reason: Optional[str] = None
+        try:
+            with self.connection() as conn:
+                row = conn.execute("PRAGMA quick_check;").fetchone()
+                status_val = str(row[0]).strip().lower() if row is not None else ""
+                if status_val != "ok":
+                    failure_reason = f"SQLite PRAGMA quick_check returned '{status_val}'."
+        except sqlite3.Error as exc:
+            failure_reason = str(exc)
+
+        if failure_reason is None:
+            return {
+                "healthy": True,
+                "recovered": False,
+                "quarantined_path": None,
+                "error": None,
+            }
+
+        with self._lock:
+            active = list(self._connections)
+            self._connections.clear()
+        for conn in active:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        backup_path = self._db_path.with_name(f"{self._db_path.name}.corrupt.{stamp}.bak")
+        if self._db_path.exists():
+            self._db_path.replace(backup_path)
+        for suffix in ("-wal", "-shm"):
+            sidecar = Path(f"{self._db_path}{suffix}")
+            if sidecar.exists():
+                try:
+                    sidecar.replace(Path(f"{backup_path}{suffix}"))
+                except OSError:
+                    pass
+
+        self.recovered_from_corruption = True
+        self.quarantined_path = str(backup_path)
+        return {
+            "healthy": True,
+            "recovered": True,
+            "quarantined_path": str(backup_path),
+            "error": failure_reason,
+        }
 
     def close(self) -> None:
         """Close all tracked SQLite connections during graceful shutdown."""
