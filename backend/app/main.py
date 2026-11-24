@@ -14,6 +14,10 @@ from fastapi.responses import JSONResponse
 
 from app.api.health import router as health_router
 from app.api.v1.router import router as v1_router
+from app.beliefs.contradictions import ContradictionDetector
+from app.beliefs.extractor import BeliefExtractor
+from app.beliefs.repository import BeliefRepository
+from app.beliefs.service import BeliefService
 from app.chat.service import ChatService
 from app.core.config import Settings
 from app.core.logging import configure_logging, shutdown_logging
@@ -23,6 +27,7 @@ from app.db.repositories import DocumentRepository
 from app.ingestion.pipeline import IngestionPipeline
 from app.models.embeddings import BaseEmbeddingAdapter, SentenceTransformerEmbeddingAdapter
 from app.models.llm import BaseLLMProvider, create_llm_provider
+from app.models.nli import BaseNLIAdapter, LocalSequenceClassificationNLIAdapter
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.service import RetrievalService
 from app.retrieval.vector_store import ChromaVectorStore
@@ -32,6 +37,7 @@ def create_app(
     settings: Optional[Settings] = None,
     embedding_adapter: Optional[BaseEmbeddingAdapter] = None,
     llm_provider: Optional[BaseLLMProvider] = None,
+    nli_adapter: Optional[BaseNLIAdapter] = None,
 ) -> FastAPI:
     """Create and configure the local MindVault FastAPI application."""
     resolved_settings = settings or Settings.from_env()
@@ -84,16 +90,46 @@ def create_app(
             retrieval_service=retrieval_service,
             llm_provider=resolved_llm,
         )
+        resolved_nli = nli_adapter or LocalSequenceClassificationNLIAdapter(
+            model_path=resolved_settings.nli_model_path,
+            models_dir=resolved_settings.models_dir,
+            offline_only=resolved_settings.offline_only,
+        )
+        belief_repo = BeliefRepository(db)
+        belief_extractor = BeliefExtractor(
+            llm_provider=resolved_llm,
+            embedder=embedder,
+            dedup_threshold=resolved_settings.belief_dedup_threshold,
+            min_confidence=resolved_settings.belief_min_confidence,
+        )
+        contradiction_detector = ContradictionDetector(
+            repo=belief_repo,
+            nli_adapter=resolved_nli,
+            candidate_top_k=resolved_settings.belief_candidate_top_k,
+            candidate_min_similarity=resolved_settings.belief_candidate_min_similarity,
+            contradiction_threshold=resolved_settings.contradiction_threshold,
+            entailment_threshold=resolved_settings.entailment_threshold,
+        )
+        belief_service = BeliefService(
+            settings=resolved_settings,
+            doc_repo=document_repo,
+            belief_repo=belief_repo,
+            extractor=belief_extractor,
+            detector=contradiction_detector,
+        )
 
         application.state.logger = logger
         application.state.db = db
         application.state.migrations = migrations
         application.state.document_repo = document_repo
+        application.state.belief_repo = belief_repo
         application.state.vector_store = vector_store
         application.state.retrieval_service = retrieval_service
         application.state.ingestion_pipeline = ingestion_pipeline
         application.state.llm_provider = resolved_llm
         application.state.chat_service = chat_service
+        application.state.nli_adapter = resolved_nli
+        application.state.belief_service = belief_service
 
         logger.info(
             "MindVault backend started",

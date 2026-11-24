@@ -23,11 +23,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
         "app.api",
         "app.api.health",
         "app.api.v1",
+        "app.api.v1.beliefs",
         "app.api.v1.chat",
         "app.api.v1.ingestion",
         "app.api.v1.retrieval",
         "app.api.v1.router",
         "app.beliefs",
+        "app.beliefs.contradictions",
+        "app.beliefs.extractor",
+        "app.beliefs.repository",
+        "app.beliefs.service",
         "app.chat",
         "app.chat.planner",
         "app.chat.prompts",
@@ -45,6 +50,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
         "app.models",
         "app.models.embeddings",
         "app.models.llm",
+        "app.models.nli",
         "app.retrieval",
         "app.retrieval.bm25_index",
         "app.retrieval.service",
@@ -95,7 +101,7 @@ def test_health_endpoint_returns_ok(tmp_path: Path) -> None:
             "version": "0.1.0",
             "offline_only": True,
             "database": "ok",
-            "schema_version": 1,
+            "schema_version": 2,
         }
 
 

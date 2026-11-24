@@ -97,6 +97,13 @@ class Settings:
     ollama_timeout_seconds: float = 30.0
     chat_max_subquestions: int = 3
     chat_max_context_chunks: int = 12
+    belief_dedup_threshold: float = 0.90
+    belief_min_confidence: float = 0.30
+    belief_candidate_top_k: int = 10
+    belief_candidate_min_similarity: float = 0.35
+    contradiction_threshold: float = 0.70
+    entailment_threshold: float = 0.70
+    nli_model_path: str = ""
     whisper_model_path: str = ""
     tesseract_cmd: str = ""
     offline_only: bool = True
@@ -166,6 +173,18 @@ class Settings:
             raise ValueError("chat_max_subquestions must be between 1 and 5.")
         if not (1 <= self.chat_max_context_chunks <= 50):
             raise ValueError("chat_max_context_chunks must be between 1 and 50.")
+        if not (0.0 < self.belief_dedup_threshold <= 1.0):
+            raise ValueError("belief_dedup_threshold must be in (0.0, 1.0].")
+        if not (0.0 <= self.belief_min_confidence <= 1.0):
+            raise ValueError("belief_min_confidence must be between 0.0 and 1.0.")
+        if not (1 <= self.belief_candidate_top_k <= 100):
+            raise ValueError("belief_candidate_top_k must be between 1 and 100.")
+        if not (0.0 <= self.belief_candidate_min_similarity <= 1.0):
+            raise ValueError("belief_candidate_min_similarity must be between 0.0 and 1.0.")
+        if not (0.0 < self.contradiction_threshold <= 1.0):
+            raise ValueError("contradiction_threshold must be in (0.0, 1.0].")
+        if not (0.0 < self.entailment_threshold <= 1.0):
+            raise ValueError("entailment_threshold must be in (0.0, 1.0].")
 
     def ensure_local_dirs(self) -> None:
         """Create required local storage directories if they do not exist."""
@@ -204,6 +223,16 @@ class Settings:
         ollama_timeout_seconds = _parse_float("MINDVAULT_OLLAMA_TIMEOUT_SECONDS", 30.0)
         chat_max_subquestions = _parse_int("MINDVAULT_CHAT_MAX_SUBQUESTIONS", 3)
         chat_max_context_chunks = _parse_int("MINDVAULT_CHAT_MAX_CONTEXT_CHUNKS", 12)
+        belief_dedup_threshold = _parse_float("MINDVAULT_BELIEF_DEDUP_THRESHOLD", 0.90)
+        belief_min_confidence = _parse_float("MINDVAULT_BELIEF_MIN_CONFIDENCE", 0.30)
+        belief_candidate_top_k = _parse_int("MINDVAULT_BELIEF_CANDIDATE_TOP_K", 10)
+        belief_candidate_min_similarity = _parse_float(
+            "MINDVAULT_BELIEF_CANDIDATE_MIN_SIMILARITY",
+            0.35,
+        )
+        contradiction_threshold = _parse_float("MINDVAULT_CONTRADICTION_THRESHOLD", 0.70)
+        entailment_threshold = _parse_float("MINDVAULT_ENTAILMENT_THRESHOLD", 0.70)
+        nli_model_path = os.getenv("MINDVAULT_NLI_MODEL_PATH", "").strip()
 
         data_dir = Path(os.getenv("MINDVAULT_DATA_DIR", "data")).expanduser()
         sqlite_path = Path(
@@ -265,6 +294,13 @@ class Settings:
             ollama_timeout_seconds=ollama_timeout_seconds,
             chat_max_subquestions=chat_max_subquestions,
             chat_max_context_chunks=chat_max_context_chunks,
+            belief_dedup_threshold=belief_dedup_threshold,
+            belief_min_confidence=belief_min_confidence,
+            belief_candidate_top_k=belief_candidate_top_k,
+            belief_candidate_min_similarity=belief_candidate_min_similarity,
+            contradiction_threshold=contradiction_threshold,
+            entailment_threshold=entailment_threshold,
+            nli_model_path=nli_model_path,
             whisper_model_path=whisper_model_path,
             tesseract_cmd=tesseract_cmd,
             offline_only=offline_only,

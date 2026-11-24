@@ -109,6 +109,13 @@ All runtime paths and ports can be configured with environment variables:
 | `MINDVAULT_OLLAMA_TIMEOUT_SECONDS` | `30.0` | Timeout in seconds for local Ollama requests |
 | `MINDVAULT_CHAT_MAX_SUBQUESTIONS` | `3` | Maximum subquestions per decomposed complex query (1-5) |
 | `MINDVAULT_CHAT_MAX_CONTEXT_CHUNKS` | `12` | Maximum grounded chunks injected into a chat prompt |
+| `MINDVAULT_BELIEF_DEDUP_THRESHOLD` | `0.90` | Cosine similarity threshold for deduplicating extracted beliefs |
+| `MINDVAULT_BELIEF_MIN_CONFIDENCE` | `0.30` | Minimum extraction confidence required to retain a belief |
+| `MINDVAULT_BELIEF_CANDIDATE_TOP_K` | `10` | Max active candidate beliefs checked per new belief with NLI |
+| `MINDVAULT_BELIEF_CANDIDATE_MIN_SIMILARITY` | `0.35` | Minimum semantic similarity before running NLI comparison |
+| `MINDVAULT_CONTRADICTION_THRESHOLD` | `0.70` | Minimum NLI contradiction probability to flag an open conflict |
+| `MINDVAULT_ENTAILMENT_THRESHOLD` | `0.70` | Minimum NLI entailment probability to record an entailment edge |
+| `MINDVAULT_NLI_MODEL_PATH` | `""` | Optional local NLI classifier path (`local_files_only`) |
 | `MINDVAULT_WHISPER_MODEL_PATH` | `""` | Optional local Whisper model path (offline only) |
 | `MINDVAULT_TESSERACT_CMD` | `""` | Optional path to local Tesseract OCR binary |
 | `MINDVAULT_OFFLINE_ONLY` | `true` | Enforce offline-only runtime mode |

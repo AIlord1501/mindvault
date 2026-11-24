@@ -352,6 +352,25 @@ class DocumentRepository:
                     result[item["id"]] = item
         return result
 
+    def get_chunk_by_id(self, chunk_id: str) -> Optional[dict[str, Any]]:
+        """Fetch a single chunk joined with its parent document metadata."""
+        with self._db.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    c.*,
+                    d.filename AS filename,
+                    d.file_type AS file_type,
+                    d.source_path AS source_path,
+                    d.content_hash AS content_hash
+                FROM chunks c
+                INNER JOIN documents d ON d.id = c.document_id
+                WHERE c.id = ?
+                """,
+                (chunk_id,),
+            ).fetchone()
+            return _row_to_indexed_chunk(row) if row is not None else None
+
     def get_chunk_ids_for_document(self, doc_id: str) -> list[str]:
         """Return all chunk IDs associated with a document ID."""
         with self._db.connection() as conn:

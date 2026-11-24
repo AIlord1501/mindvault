@@ -41,6 +41,10 @@ EXPECTED_SCHEMA: dict[str, set[str]] = {
         "epoch",
         "status",
         "created_at",
+        "superseded_by_id",
+        "context_note",
+        "embedding_json",
+        "updated_at",
     },
     "contradictions": {
         "id",
@@ -51,6 +55,21 @@ EXPECTED_SCHEMA: dict[str, set[str]] = {
         "resolution",
         "created_at",
         "resolved_at",
+        "entailment_score",
+        "neutral_score",
+        "similarity_score",
+        "resolution_note",
+    },
+    "belief_relations": {
+        "id",
+        "source_belief_id",
+        "target_belief_id",
+        "label",
+        "contradiction_score",
+        "entailment_score",
+        "neutral_score",
+        "similarity_score",
+        "created_at",
     },
     "graph_edges": {
         "id",
@@ -92,8 +111,8 @@ def test_migrations_create_expected_tables_columns_and_indexes(tmp_path: Path) -
     try:
         runner = MigrationRunner(db)
         applied_first = runner.apply_pending()
-        assert applied_first == [1]
-        assert runner.current_version() == 1
+        assert applied_first == [1, 2]
+        assert runner.current_version() == 2
 
         # Running migrations again must be idempotent.
         assert runner.apply_pending() == []
@@ -124,7 +143,9 @@ def test_migrations_create_expected_tables_columns_and_indexes(tmp_path: Path) -
             assert "idx_documents_content_hash" in indexes
             assert "idx_chunks_document_id" in indexes
             assert "idx_beliefs_chunk_id" in indexes
+            assert "idx_beliefs_superseded_by_id" in indexes
             assert "idx_contradictions_status" in indexes
+            assert "idx_belief_relations_label" in indexes
             assert "idx_graph_edges_source_id" in indexes
             assert "idx_retention_scores_next_review_at" in indexes
             assert "idx_citations_query_id" in indexes
