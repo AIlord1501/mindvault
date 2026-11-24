@@ -27,6 +27,18 @@ function getCommands() {
       run: () => setActiveView("dashboard")
     },
     {
+      id: "dashboard-brief",
+      label: "Generate Morning Brief",
+      hint: "Dashboard",
+      run: () => {
+        setActiveView("dashboard");
+        if (window.MindVaultDashboard) {
+          const ctrl = window.MindVaultDashboard.initDashboard();
+          void ctrl.generateMorningBrief(false);
+        }
+      }
+    },
+    {
       id: "nav-research",
       label: "Go to Research",
       hint: "Navigation",
@@ -78,6 +90,11 @@ function setActiveView(viewName) {
   const viewLabel = document.getElementById("status-view-label");
   if (viewLabel) {
     viewLabel.textContent = `View: ${VIEW_LABELS[viewName]}`;
+  }
+
+  if (viewName === "dashboard" && window.MindVaultDashboard) {
+    const ctrl = window.MindVaultDashboard.initDashboard();
+    void ctrl.refresh();
   }
 }
 
@@ -358,7 +375,12 @@ async function initDesktopShell() {
   }
 
   try {
-    await window.mindvault.getConfig();
+    const cfg = await window.mindvault.getConfig();
+    if (window.MindVaultDashboard) {
+      window.MindVaultDashboard.initDashboard({
+        backendUrl: cfg && cfg.backendUrl ? cfg.backendUrl : "http://127.0.0.1:8765"
+      });
+    }
     if (typeof window.mindvault.onBackendStatus === "function") {
       window.mindvault.onBackendStatus((status) => {
         renderBackendStatus(status);

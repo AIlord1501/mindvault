@@ -126,18 +126,159 @@
             </div>
           </section>
 
-          <section class="view-panel" data-panel="dashboard">
-            <div class="panel-header">
-              <h1>Dashboard</h1>
-              <p class="panel-subtitle">Retention reviews, contradictions, and daily briefs.</p>
+          <section class="view-panel" data-panel="dashboard" aria-busy="false">
+            <div class="panel-header dashboard-header-row">
+              <div>
+                <h1>Dashboard</h1>
+                <p class="panel-subtitle">
+                  Local belief drift, concept velocity, memory decay, health radar, flashcards, contradictions, and Morning Brief.
+                </p>
+              </div>
+              <div class="epoch-filter-bar" role="region" aria-label="Epoch filters">
+                <label class="epoch-field">
+                  <span>Epoch Min</span>
+                  <input id="dashboard-epoch-min" type="number" min="0" placeholder="Any" />
+                </label>
+                <label class="epoch-field">
+                  <span>Epoch Max</span>
+                  <input id="dashboard-epoch-max" type="number" min="0" placeholder="Any" />
+                </label>
+                <button id="dashboard-apply-epoch" class="btn-secondary" type="button">
+                  Apply Filter
+                </button>
+                <button id="dashboard-reset-epoch" class="btn-secondary" type="button">
+                  Reset
+                </button>
+                <button id="dashboard-refresh-btn" class="btn-primary" type="button">
+                  Refresh
+                </button>
+              </div>
             </div>
-            <div class="placeholder-card">
-              <h2>Dashboard Overview</h2>
-              <p>
-                Retention tracking, contradiction alerts, and morning briefs will appear here once
-                those backend services are implemented.
-              </p>
+
+            <div id="dashboard-loading" class="dashboard-loading hidden" role="status" aria-live="polite">
+              Loading local vault insights...
             </div>
+
+            <div id="dashboard-error" class="dashboard-error hidden" role="alert">
+              <span id="dashboard-error-text"></span>
+              <button id="dashboard-error-retry" class="btn-secondary" type="button">Retry</button>
+            </div>
+
+            <div class="kpi-strip" role="region" aria-label="Vault key metrics">
+              <div class="kpi-card">
+                <span class="kpi-label">Documents</span>
+                <strong id="kpi-docs" class="kpi-value">--</strong>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-label">Due Flashcards</span>
+                <strong id="kpi-due" class="kpi-value">--</strong>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-label">Open Contradictions</span>
+                <strong id="kpi-contradictions" class="kpi-value">--</strong>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-label">Avg Retention</span>
+                <strong id="kpi-retention" class="kpi-value">--</strong>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-label">Vault Health</span>
+                <strong id="kpi-health" class="kpi-value">--</strong>
+              </div>
+            </div>
+
+            <article class="insight-card morning-brief-panel" aria-label="Morning Brief">
+              <div class="card-header-row">
+                <div>
+                  <h2>Morning Brief</h2>
+                  <p class="muted">Prioritized daily synthesis with local citations (max 3 insights by default).</p>
+                </div>
+                <div class="brief-controls">
+                  <label class="brief-select-label">
+                    <span>Insights</span>
+                    <select id="brief-max-insights">
+                      <option value="1">1</option>
+                      <option value="3" selected>3</option>
+                      <option value="5">5</option>
+                    </select>
+                  </label>
+                  <button id="brief-generate-btn" class="btn-primary" type="button">
+                    Generate Brief
+                  </button>
+                  <button id="brief-regenerate-btn" class="btn-secondary" type="button">
+                    Regenerate
+                  </button>
+                </div>
+              </div>
+              <div class="brief-categories" role="group" aria-label="Morning brief categories">
+                <label class="cat-checkbox">
+                  <input type="checkbox" data-brief-category="decaying_notes" checked />
+                  <span>Decaying Notes</span>
+                </label>
+                <label class="cat-checkbox">
+                  <input type="checkbox" data-brief-category="contradictions" checked />
+                  <span>Contradictions</span>
+                </label>
+                <label class="cat-checkbox">
+                  <input type="checkbox" data-brief-category="dormant_epochs" checked />
+                  <span>Dormant Epochs</span>
+                </label>
+                <label class="cat-checkbox">
+                  <input type="checkbox" data-brief-category="major_clusters" checked />
+                  <span>Major Clusters</span>
+                </label>
+              </div>
+              <div id="morning-brief-container" class="brief-body"></div>
+            </article>
+
+            <div class="dashboard-grid">
+              <article class="insight-card" data-dashboard-view="belief-drift">
+                <h2>1. Belief Drift Timeline</h2>
+                <p class="muted">Active vs. superseded beliefs and contradictions across epochs.</p>
+                <div id="chart-belief-drift" class="chart-host"></div>
+              </article>
+
+              <article class="insight-card" data-dashboard-view="concept-velocity">
+                <h2>2. Concept Velocity</h2>
+                <p class="muted">Knowledge throughput and emerging concepts across epochs.</p>
+                <div id="chart-concept-velocity" class="chart-host"></div>
+                <div id="concept-velocity-tags" class="concept-tags"></div>
+              </article>
+
+              <article class="insight-card" data-dashboard-view="decay">
+                <h2>3. Knowledge Decay Heatmap</h2>
+                <p class="muted">Live exponential memory retention R = exp(-t / S) per chunk.</p>
+                <div id="chart-decay-heatmap" class="chart-host"></div>
+              </article>
+
+              <article class="insight-card" data-dashboard-view="health">
+                <h2>4. Knowledge Health Radar</h2>
+                <p class="muted">Five-axis health telemetry across retention, consistency, and links.</p>
+                <div id="chart-health-radar" class="chart-host"></div>
+              </article>
+
+              <article class="insight-card" data-dashboard-view="flashcards">
+                <h2>5. Review Flashcards</h2>
+                <p class="muted">Self-recall spaced repetition workflow (prompt hidden-answer first).</p>
+                <div id="flashcards-container" class="flashcards-host"></div>
+              </article>
+
+              <article class="insight-card" data-dashboard-view="contradictions">
+                <h2>6. Contradiction Resolver</h2>
+                <p class="muted">Side-by-side resolution preserving full historical belief lineage.</p>
+                <div id="contradictions-container" class="contradictions-host"></div>
+              </article>
+            </div>
+
+            <aside class="insight-card inspector-panel" aria-label="Click-to-Explore Inspector">
+              <div class="card-header-row">
+                <h2>Click-to-Explore Inspector</h2>
+                <button id="inspector-clear-btn" class="btn-secondary" type="button">
+                  Clear Selection
+                </button>
+              </div>
+              <div id="dashboard-inspector-body" class="inspector-body"></div>
+            </aside>
           </section>
 
           <section class="view-panel" data-panel="research">
@@ -238,6 +379,8 @@
       </div>
     </div>
 
+    <script src="./js/d3-lite.js" defer></script>
+    <script src="./js/dashboard.js" defer></script>
     <script src="./js/app.js" defer></script>
   </body>
 </html>

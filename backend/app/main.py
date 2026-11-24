@@ -34,6 +34,7 @@ from app.models.nli import BaseNLIAdapter, LocalSequenceClassificationNLIAdapter
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.service import RetrievalService
 from app.retrieval.vector_store import ChromaVectorStore
+from app.scheduler.insights import VaultInsightsService
 from app.scheduler.models import BaseRetentionModel
 from app.scheduler.repository import RetentionRepository
 from app.scheduler.service import RetentionService
@@ -141,6 +142,12 @@ def create_app(
             extractor=belief_extractor,
             detector=contradiction_detector,
         )
+        insights_service = VaultInsightsService(
+            db=db,
+            settings=resolved_settings,
+            retention_service=retention_service,
+            belief_repo=belief_repo,
+        )
 
         application.state.logger = logger
         application.state.db = db
@@ -158,6 +165,7 @@ def create_app(
         application.state.belief_service = belief_service
         application.state.retention_repo = retention_repo
         application.state.retention_service = retention_service
+        application.state.insights_service = insights_service
 
         logger.info(
             "MindVault backend started",
