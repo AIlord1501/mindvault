@@ -120,6 +120,14 @@ All runtime paths and ports can be configured with environment variables:
 | `MINDVAULT_GRAPH_MAX_NEIGHBORS_PER_NODE` | `8` | Maximum ANN candidate neighbors linked per chunk node |
 | `MINDVAULT_GRAPH_MAX_NODES` | `500` | Default maximum nodes returned per D3 graph query |
 | `MINDVAULT_GRAPH_MAX_EDGES` | `2000` | Default maximum edges returned per D3 graph query |
+| `MINDVAULT_RETENTION_INITIAL_STABILITY_DAYS` | `1.0` | Initial memory stability $S_0$ (days) for newly indexed chunks |
+| `MINDVAULT_RETENTION_MIN_STABILITY_DAYS` | `0.25` | Minimum memory stability floor (days) on repeated lapses |
+| `MINDVAULT_RETENTION_MAX_STABILITY_DAYS` | `3650.0` | Maximum memory stability cap (days) |
+| `MINDVAULT_RETENTION_THRESHOLD` | `0.75` | Retention cutoff below which a chunk becomes due for review |
+| `MINDVAULT_RETENTION_FACTOR_FORGOT` | `0.50` | Stability multiplier on `forgot` (rating `1`) |
+| `MINDVAULT_RETENTION_FACTOR_HARD` | `1.20` | Stability multiplier on `hard` (rating `2`) |
+| `MINDVAULT_RETENTION_FACTOR_GOOD` | `2.20` | Base stability multiplier on `good` (rating `3`) |
+| `MINDVAULT_RETENTION_FACTOR_EASY` | `3.20` | Base stability multiplier on `easy` (rating `4`) |
 | `MINDVAULT_WHISPER_MODEL_PATH` | `""` | Optional local Whisper model path (offline only) |
 | `MINDVAULT_TESSERACT_CMD` | `""` | Optional path to local Tesseract OCR binary |
 | `MINDVAULT_OFFLINE_ONLY` | `true` | Enforce offline-only runtime mode |

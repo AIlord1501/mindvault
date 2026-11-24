@@ -22,6 +22,7 @@ from app.ingestion.errors import (
 if TYPE_CHECKING:
     from app.graph.service import GraphService
     from app.retrieval.service import RetrievalService
+    from app.scheduler.service import RetentionService
 
 _SAFE_FILENAME_RE = re.compile(r"[^a-zA-Z0-9._-]+")
 
@@ -87,6 +88,7 @@ class IngestionPipeline:
         registry: Optional[AdapterRegistry] = None,
         retrieval_service: Optional[RetrievalService] = None,
         graph_service: Optional[GraphService] = None,
+        retention_service: Optional[RetentionService] = None,
     ) -> None:
         self._settings = settings
         self._repo = repo
@@ -96,6 +98,7 @@ class IngestionPipeline:
         )
         self._retrieval_service = retrieval_service
         self._graph_service = graph_service
+        self._retention_service = retention_service
 
     def _store_in_vault(self, content: bytes, content_hash: str, safe_name: str) -> Path:
         """Persist raw bytes inside the managed vault directory."""
@@ -352,6 +355,10 @@ class IngestionPipeline:
                 chunks=chunk_rows,
             )
             progress.append("indexed_graph")
+
+        if self._retention_service is not None:
+            self._retention_service.initialize_chunks(chunk_rows)
+            progress.append("initialized_retention")
 
         # 12. Return ingestion summary
         return IngestionResult(

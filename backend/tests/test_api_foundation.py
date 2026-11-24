@@ -35,7 +35,7 @@ def test_lifespan_startup_endpoints_and_graceful_shutdown(tmp_path: Path) -> Non
             "version": "0.1.0",
             "offline_only": True,
             "database": "ok",
-            "schema_version": 2,
+            "schema_version": 3,
         }
 
         # Versioned /api/v1/health
@@ -50,7 +50,7 @@ def test_lifespan_startup_endpoints_and_graceful_shutdown(tmp_path: Path) -> Non
         body = status_resp.json()
         assert body["api_version"] == "v1"
         assert body["database_ok"] is True
-        assert body["applied_migrations"] == [1, 2]
+        assert body["applied_migrations"] == [1, 2, 3]
         assert body["paths"] is None
 
         # Versioned /api/v1/system/status with include_paths=true

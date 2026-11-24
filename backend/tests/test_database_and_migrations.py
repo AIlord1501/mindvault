@@ -88,6 +88,19 @@ EXPECTED_SCHEMA: dict[str, set[str]] = {
         "next_review_at",
         "review_count",
     },
+    "review_history": {
+        "id",
+        "chunk_id",
+        "outcome",
+        "rating",
+        "previous_stability",
+        "new_stability",
+        "retention_before",
+        "elapsed_days",
+        "next_review_at",
+        "reviewed_at",
+        "notes",
+    },
     "citations": {
         "id",
         "query_id",
@@ -111,8 +124,8 @@ def test_migrations_create_expected_tables_columns_and_indexes(tmp_path: Path) -
     try:
         runner = MigrationRunner(db)
         applied_first = runner.apply_pending()
-        assert applied_first == [1, 2]
-        assert runner.current_version() == 2
+        assert applied_first == [1, 2, 3]
+        assert runner.current_version() == 3
 
         # Running migrations again must be idempotent.
         assert runner.apply_pending() == []
@@ -148,6 +161,8 @@ def test_migrations_create_expected_tables_columns_and_indexes(tmp_path: Path) -
             assert "idx_belief_relations_label" in indexes
             assert "idx_graph_edges_source_id" in indexes
             assert "idx_retention_scores_next_review_at" in indexes
+            assert "idx_review_history_chunk_id" in indexes
+            assert "idx_review_history_reviewed_at" in indexes
             assert "idx_citations_query_id" in indexes
             assert "idx_morning_briefs_brief_date" in indexes
     finally:

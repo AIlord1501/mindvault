@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import AsyncIterator, Awaitable, Callable, Optional
 
 from fastapi import FastAPI, Request, Response, status
@@ -33,6 +34,9 @@ from app.models.nli import BaseNLIAdapter, LocalSequenceClassificationNLIAdapter
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.service import RetrievalService
 from app.retrieval.vector_store import ChromaVectorStore
+from app.scheduler.models import BaseRetentionModel
+from app.scheduler.repository import RetentionRepository
+from app.scheduler.service import RetentionService
 
 
 def create_app(
@@ -40,6 +44,8 @@ def create_app(
     embedding_adapter: Optional[BaseEmbeddingAdapter] = None,
     llm_provider: Optional[BaseLLMProvider] = None,
     nli_adapter: Optional[BaseNLIAdapter] = None,
+    retention_model: Optional[BaseRetentionModel] = None,
+    retention_clock: Optional[Callable[[], datetime]] = None,
 ) -> FastAPI:
     """Create and configure the local MindVault FastAPI application."""
     resolved_settings = settings or Settings.from_env()
@@ -85,12 +91,21 @@ def create_app(
             repo=graph_repo,
             vector_store=vector_store,
         )
+        retention_repo = RetentionRepository(db)
+        retention_service = RetentionService(
+            db=db,
+            settings=resolved_settings,
+            repository=retention_repo,
+            model=retention_model,
+            clock=retention_clock,
+        )
 
         ingestion_pipeline = IngestionPipeline(
             settings=resolved_settings,
             repo=document_repo,
             retrieval_service=retrieval_service,
             graph_service=graph_service,
+            retention_service=retention_service,
         )
         resolved_llm = llm_provider or create_llm_provider(resolved_settings)
         chat_service = ChatService(
@@ -141,6 +156,8 @@ def create_app(
         application.state.chat_service = chat_service
         application.state.nli_adapter = resolved_nli
         application.state.belief_service = belief_service
+        application.state.retention_repo = retention_repo
+        application.state.retention_service = retention_service
 
         logger.info(
             "MindVault backend started",

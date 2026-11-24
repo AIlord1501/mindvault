@@ -27,6 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
         "app.api.v1.chat",
         "app.api.v1.graph",
         "app.api.v1.ingestion",
+        "app.api.v1.retention",
         "app.api.v1.retrieval",
         "app.api.v1.router",
         "app.beliefs",
@@ -60,6 +61,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
         "app.retrieval.types",
         "app.retrieval.vector_store",
         "app.scheduler",
+        "app.scheduler.models",
+        "app.scheduler.repository",
+        "app.scheduler.service",
     ],
 )
 def test_backend_packages_importable(module_name: str) -> None:
@@ -104,7 +108,7 @@ def test_health_endpoint_returns_ok(tmp_path: Path) -> None:
             "version": "0.1.0",
             "offline_only": True,
             "database": "ok",
-            "schema_version": 2,
+            "schema_version": 3,
         }
 
 

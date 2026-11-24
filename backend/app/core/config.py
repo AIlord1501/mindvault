@@ -108,6 +108,14 @@ class Settings:
     graph_max_neighbors_per_node: int = 8
     graph_max_nodes: int = 500
     graph_max_edges: int = 2000
+    retention_initial_stability_days: float = 1.0
+    retention_min_stability_days: float = 0.25
+    retention_max_stability_days: float = 3650.0
+    retention_threshold: float = 0.75
+    retention_factor_forgot: float = 0.50
+    retention_factor_hard: float = 1.20
+    retention_factor_good: float = 2.20
+    retention_factor_easy: float = 3.20
     whisper_model_path: str = ""
     tesseract_cmd: str = ""
     offline_only: bool = True
@@ -197,6 +205,28 @@ class Settings:
             raise ValueError("graph_max_nodes must be between 1 and 5000.")
         if not (1 <= self.graph_max_edges <= 20000):
             raise ValueError("graph_max_edges must be between 1 and 20000.")
+        if self.retention_min_stability_days <= 0.0:
+            raise ValueError("retention_min_stability_days must be positive.")
+        if self.retention_initial_stability_days <= 0.0:
+            raise ValueError("retention_initial_stability_days must be positive.")
+        if self.retention_min_stability_days > self.retention_initial_stability_days:
+            raise ValueError(
+                "retention_min_stability_days must be <= retention_initial_stability_days."
+            )
+        if self.retention_max_stability_days < self.retention_initial_stability_days:
+            raise ValueError(
+                "retention_max_stability_days must be >= retention_initial_stability_days."
+            )
+        if not (0.0 < self.retention_threshold < 1.0):
+            raise ValueError("retention_threshold must be strictly between 0.0 and 1.0.")
+        if not (0.0 < self.retention_factor_forgot <= 1.0):
+            raise ValueError("retention_factor_forgot must be in (0.0, 1.0].")
+        if self.retention_factor_hard < 1.0:
+            raise ValueError("retention_factor_hard must be >= 1.0.")
+        if self.retention_factor_good < self.retention_factor_hard:
+            raise ValueError("retention_factor_good must be >= retention_factor_hard.")
+        if self.retention_factor_easy < self.retention_factor_good:
+            raise ValueError("retention_factor_easy must be >= retention_factor_good.")
 
     def ensure_local_dirs(self) -> None:
         """Create required local storage directories if they do not exist."""
@@ -249,6 +279,23 @@ class Settings:
         graph_max_neighbors_per_node = _parse_int("MINDVAULT_GRAPH_MAX_NEIGHBORS_PER_NODE", 8)
         graph_max_nodes = _parse_int("MINDVAULT_GRAPH_MAX_NODES", 500)
         graph_max_edges = _parse_int("MINDVAULT_GRAPH_MAX_EDGES", 2000)
+        retention_initial_stability_days = _parse_float(
+            "MINDVAULT_RETENTION_INITIAL_STABILITY_DAYS",
+            1.0,
+        )
+        retention_min_stability_days = _parse_float(
+            "MINDVAULT_RETENTION_MIN_STABILITY_DAYS",
+            0.25,
+        )
+        retention_max_stability_days = _parse_float(
+            "MINDVAULT_RETENTION_MAX_STABILITY_DAYS",
+            3650.0,
+        )
+        retention_threshold = _parse_float("MINDVAULT_RETENTION_THRESHOLD", 0.75)
+        retention_factor_forgot = _parse_float("MINDVAULT_RETENTION_FACTOR_FORGOT", 0.50)
+        retention_factor_hard = _parse_float("MINDVAULT_RETENTION_FACTOR_HARD", 1.20)
+        retention_factor_good = _parse_float("MINDVAULT_RETENTION_FACTOR_GOOD", 2.20)
+        retention_factor_easy = _parse_float("MINDVAULT_RETENTION_FACTOR_EASY", 3.20)
 
         data_dir = Path(os.getenv("MINDVAULT_DATA_DIR", "data")).expanduser()
         sqlite_path = Path(
@@ -321,6 +368,14 @@ class Settings:
             graph_max_neighbors_per_node=graph_max_neighbors_per_node,
             graph_max_nodes=graph_max_nodes,
             graph_max_edges=graph_max_edges,
+            retention_initial_stability_days=retention_initial_stability_days,
+            retention_min_stability_days=retention_min_stability_days,
+            retention_max_stability_days=retention_max_stability_days,
+            retention_threshold=retention_threshold,
+            retention_factor_forgot=retention_factor_forgot,
+            retention_factor_hard=retention_factor_hard,
+            retention_factor_good=retention_factor_good,
+            retention_factor_easy=retention_factor_easy,
             whisper_model_path=whisper_model_path,
             tesseract_cmd=tesseract_cmd,
             offline_only=offline_only,
