@@ -5,9 +5,30 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 ALLOWED_HOSTS = frozenset({"127.0.0.1"})
+ALLOWED_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost"})
 ALLOWED_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
+ALLOWED_LLM_PROVIDERS = frozenset({"llamacpp", "ollama"})
+
+
+def validate_loopback_http_url(url: str, field_name: str = "url") -> str:
+    """Ensure a local service URL targets http://127.0.0.1 or http://localhost only."""
+    cleaned = url.strip().rstrip("/")
+    parsed = urlparse(cleaned)
+    if parsed.scheme != "http" or parsed.hostname not in ALLOWED_LOOPBACK_HOSTS:
+        raise ValueError(
+            f"Invalid {field_name} '{url}'. Only local loopback http://127.0.0.1 or "
+            "http://localhost URLs are permitted."
+        )
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError(f"Invalid port in {field_name} '{url}'.") from exc
+    if port is not None and not (1 <= port <= 65535):
+        raise ValueError(f"Invalid port '{port}' in {field_name}.")
+    return cleaned
 
 
 def _parse_bool(value: str, default: bool = True) -> bool:
@@ -65,7 +86,17 @@ class Settings:
     bm25_weight: float = 0.4
     rrf_k: int = 60
     rerank_enabled: bool = True
+    llm_provider: str = "llamacpp"
     llm_model_path: str = ""
+    llm_context_size: int = 4096
+    llm_max_tokens: int = 1024
+    llm_temperature: float = 0.2
+    llm_n_gpu_layers: int = 0
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = ""
+    ollama_timeout_seconds: float = 30.0
+    chat_max_subquestions: int = 3
+    chat_max_context_chunks: int = 12
     whisper_model_path: str = ""
     tesseract_cmd: str = ""
     offline_only: bool = True
@@ -111,6 +142,31 @@ class Settings:
         if self.rrf_k < 1:
             raise ValueError("rrf_k must be at least 1.")
 
+        normalized_provider = self.llm_provider.strip().lower()
+        if normalized_provider not in ALLOWED_LLM_PROVIDERS:
+            allowed_p = sorted(ALLOWED_LLM_PROVIDERS)
+            raise ValueError(
+                f"Invalid llm_provider '{self.llm_provider}'. Must be one of {allowed_p}."
+            )
+        object.__setattr__(self, "llm_provider", normalized_provider)
+        if self.llm_context_size < 256:
+            raise ValueError("llm_context_size must be at least 256.")
+        if self.llm_max_tokens < 1:
+            raise ValueError("llm_max_tokens must be at least 1.")
+        if not (0.0 <= self.llm_temperature <= 2.0):
+            raise ValueError("llm_temperature must be between 0.0 and 2.0.")
+        normalized_ollama_url = validate_loopback_http_url(
+            self.ollama_base_url,
+            field_name="ollama_base_url",
+        )
+        object.__setattr__(self, "ollama_base_url", normalized_ollama_url)
+        if self.ollama_timeout_seconds <= 0.0:
+            raise ValueError("ollama_timeout_seconds must be positive.")
+        if not (1 <= self.chat_max_subquestions <= 5):
+            raise ValueError("chat_max_subquestions must be between 1 and 5.")
+        if not (1 <= self.chat_max_context_chunks <= 50):
+            raise ValueError("chat_max_context_chunks must be between 1 and 50.")
+
     def ensure_local_dirs(self) -> None:
         """Create required local storage directories if they do not exist."""
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -137,6 +193,18 @@ class Settings:
         rrf_k = _parse_int("MINDVAULT_RRF_K", 60)
         rerank_enabled = _parse_bool(os.getenv("MINDVAULT_RERANK_ENABLED", "true"), default=True)
 
+        llm_provider = os.getenv("MINDVAULT_LLM_PROVIDER", "llamacpp").strip()
+        llm_model_path = os.getenv("MINDVAULT_LLM_MODEL_PATH", "").strip()
+        llm_context_size = _parse_int("MINDVAULT_LLM_CONTEXT_SIZE", 4096)
+        llm_max_tokens = _parse_int("MINDVAULT_LLM_MAX_TOKENS", 1024)
+        llm_temperature = _parse_float("MINDVAULT_LLM_TEMPERATURE", 0.2)
+        llm_n_gpu_layers = _parse_int("MINDVAULT_LLM_N_GPU_LAYERS", 0)
+        ollama_base_url = os.getenv("MINDVAULT_OLLAMA_BASE_URL", "http://127.0.0.1:11434").strip()
+        ollama_model = os.getenv("MINDVAULT_OLLAMA_MODEL", "").strip()
+        ollama_timeout_seconds = _parse_float("MINDVAULT_OLLAMA_TIMEOUT_SECONDS", 30.0)
+        chat_max_subquestions = _parse_int("MINDVAULT_CHAT_MAX_SUBQUESTIONS", 3)
+        chat_max_context_chunks = _parse_int("MINDVAULT_CHAT_MAX_CONTEXT_CHUNKS", 12)
+
         data_dir = Path(os.getenv("MINDVAULT_DATA_DIR", "data")).expanduser()
         sqlite_path = Path(
             os.getenv("MINDVAULT_SQLITE_PATH", str(data_dir / "mindvault.db"))
@@ -158,7 +226,6 @@ class Settings:
         log_level = os.getenv("MINDVAULT_LOG_LEVEL", "INFO").strip()
         log_to_file = _parse_bool(os.getenv("MINDVAULT_LOG_TO_FILE", "false"), default=False)
         embedding_model = os.getenv("MINDVAULT_EMBEDDING_MODEL", "").strip()
-        llm_model_path = os.getenv("MINDVAULT_LLM_MODEL_PATH", "").strip()
         whisper_model_path = os.getenv("MINDVAULT_WHISPER_MODEL_PATH", "").strip()
         tesseract_cmd = os.getenv("MINDVAULT_TESSERACT_CMD", "").strip()
         offline_only = _parse_bool(os.getenv("MINDVAULT_OFFLINE_ONLY", "true"), default=True)
@@ -187,7 +254,17 @@ class Settings:
             bm25_weight=bm25_weight,
             rrf_k=rrf_k,
             rerank_enabled=rerank_enabled,
+            llm_provider=llm_provider,
             llm_model_path=llm_model_path,
+            llm_context_size=llm_context_size,
+            llm_max_tokens=llm_max_tokens,
+            llm_temperature=llm_temperature,
+            llm_n_gpu_layers=llm_n_gpu_layers,
+            ollama_base_url=ollama_base_url,
+            ollama_model=ollama_model,
+            ollama_timeout_seconds=ollama_timeout_seconds,
+            chat_max_subquestions=chat_max_subquestions,
+            chat_max_context_chunks=chat_max_context_chunks,
             whisper_model_path=whisper_model_path,
             tesseract_cmd=tesseract_cmd,
             offline_only=offline_only,

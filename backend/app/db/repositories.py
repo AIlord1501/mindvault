@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from typing import Any, Optional
 
 from app.db.database import DatabaseManager
@@ -377,3 +378,64 @@ class DocumentRepository:
             docs = int(doc_row["cnt"]) if doc_row is not None else 0
             chunks = int(chunk_row["cnt"]) if chunk_row is not None else 0
             return docs, chunks
+
+    def save_citations(
+        self,
+        *,
+        query_id: str,
+        chunk_ids: list[str],
+        citation_type: str = "retrieval",
+        created_at: str,
+    ) -> list[dict[str, Any]]:
+        """Persist retrieval citations linked to a query ID inside SQLite."""
+        unique_chunk_ids = list(dict.fromkeys(chunk_ids))
+        if not unique_chunk_ids:
+            return []
+
+        records: list[dict[str, Any]] = []
+        rows_to_insert: list[tuple[str, str, str, str, str]] = []
+        for cid in unique_chunk_ids:
+            citation_id = uuid.uuid4().hex
+            records.append(
+                {
+                    "id": citation_id,
+                    "query_id": query_id,
+                    "chunk_id": cid,
+                    "citation_type": citation_type,
+                    "created_at": created_at,
+                }
+            )
+            rows_to_insert.append((citation_id, query_id, cid, citation_type, created_at))
+
+        with self._db.transaction(immediate=True) as conn:
+            conn.executemany(
+                """
+                INSERT INTO citations (id, query_id, chunk_id, citation_type, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                rows_to_insert,
+            )
+        return records
+
+    def list_citations_for_query(self, query_id: str) -> list[dict[str, Any]]:
+        """Return persisted citations for a given query ID."""
+        with self._db.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, query_id, chunk_id, citation_type, created_at
+                FROM citations
+                WHERE query_id = ?
+                ORDER BY rowid ASC
+                """,
+                (query_id,),
+            ).fetchall()
+            return [
+                {
+                    "id": str(row["id"]),
+                    "query_id": str(row["query_id"]),
+                    "chunk_id": str(row["chunk_id"]),
+                    "citation_type": str(row["citation_type"]),
+                    "created_at": str(row["created_at"]),
+                }
+                for row in rows
+            ]

@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.health import router as health_router
 from app.api.v1.router import router as v1_router
+from app.chat.service import ChatService
 from app.core.config import Settings
 from app.core.logging import configure_logging, shutdown_logging
 from app.db.database import DatabaseManager
@@ -21,6 +22,7 @@ from app.db.migrations import MigrationRunner
 from app.db.repositories import DocumentRepository
 from app.ingestion.pipeline import IngestionPipeline
 from app.models.embeddings import BaseEmbeddingAdapter, SentenceTransformerEmbeddingAdapter
+from app.models.llm import BaseLLMProvider, create_llm_provider
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.service import RetrievalService
 from app.retrieval.vector_store import ChromaVectorStore
@@ -29,6 +31,7 @@ from app.retrieval.vector_store import ChromaVectorStore
 def create_app(
     settings: Optional[Settings] = None,
     embedding_adapter: Optional[BaseEmbeddingAdapter] = None,
+    llm_provider: Optional[BaseLLMProvider] = None,
 ) -> FastAPI:
     """Create and configure the local MindVault FastAPI application."""
     resolved_settings = settings or Settings.from_env()
@@ -74,6 +77,13 @@ def create_app(
             repo=document_repo,
             retrieval_service=retrieval_service,
         )
+        resolved_llm = llm_provider or create_llm_provider(resolved_settings)
+        chat_service = ChatService(
+            settings=resolved_settings,
+            repo=document_repo,
+            retrieval_service=retrieval_service,
+            llm_provider=resolved_llm,
+        )
 
         application.state.logger = logger
         application.state.db = db
@@ -82,6 +92,8 @@ def create_app(
         application.state.vector_store = vector_store
         application.state.retrieval_service = retrieval_service
         application.state.ingestion_pipeline = ingestion_pipeline
+        application.state.llm_provider = resolved_llm
+        application.state.chat_service = chat_service
 
         logger.info(
             "MindVault backend started",
@@ -94,6 +106,7 @@ def create_app(
                 "applied_migrations": newly_applied,
                 "schema_version": migrations.current_version(),
                 "bm25_synced_chunks": synced_chunks,
+                "llm_provider": resolved_llm.provider_name,
                 "offline_only": resolved_settings.offline_only,
             },
         )

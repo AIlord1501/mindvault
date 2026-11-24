@@ -21,6 +21,7 @@ MindVault/
 │   │   ├── db/           # SQLite metadata persistence
 │   │   ├── ingestion/    # Document parsing and chunking
 │   │   ├── retrieval/    # Vector + lexical retrieval
+│   │   ├── chat/         # Bounded planning, prompts, streaming chat
 │   │   ├── beliefs/      # Belief evolution & contradiction tracking
 │   │   ├── graph/        # Knowledge graph projection
 │   │   ├── scheduler/    # Retention & spaced-review scheduling
@@ -97,7 +98,17 @@ All runtime paths and ports can be configured with environment variables:
 | `MINDVAULT_BM25_WEIGHT` | `0.4` | Weight assigned to BM25 lexical ranks in RRF fusion |
 | `MINDVAULT_RRF_K` | `60` | Reciprocal Rank Fusion smoothing constant |
 | `MINDVAULT_RERANK_ENABLED` | `true` | Enable deterministic local phrase/coverage reranking |
+| `MINDVAULT_LLM_PROVIDER` | `llamacpp` | Local LLM backend (`llamacpp` or `ollama`) |
 | `MINDVAULT_LLM_MODEL_PATH` | `""` | Optional local GGUF model file path |
+| `MINDVAULT_LLM_CONTEXT_SIZE` | `4096` | Context window size for local llama.cpp inference |
+| `MINDVAULT_LLM_MAX_TOKENS` | `1024` | Upper token limit per generated answer |
+| `MINDVAULT_LLM_TEMPERATURE` | `0.2` | Sampling temperature (`0.0` - `2.0`) |
+| `MINDVAULT_LLM_N_GPU_LAYERS` | `0` | GPU offload layers for llama.cpp (`0` = CPU only) |
+| `MINDVAULT_OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Loopback-only local Ollama endpoint |
+| `MINDVAULT_OLLAMA_MODEL` | `""` | Local Ollama model tag (must exist locally; no remote pulls) |
+| `MINDVAULT_OLLAMA_TIMEOUT_SECONDS` | `30.0` | Timeout in seconds for local Ollama requests |
+| `MINDVAULT_CHAT_MAX_SUBQUESTIONS` | `3` | Maximum subquestions per decomposed complex query (1-5) |
+| `MINDVAULT_CHAT_MAX_CONTEXT_CHUNKS` | `12` | Maximum grounded chunks injected into a chat prompt |
 | `MINDVAULT_WHISPER_MODEL_PATH` | `""` | Optional local Whisper model path (offline only) |
 | `MINDVAULT_TESSERACT_CMD` | `""` | Optional path to local Tesseract OCR binary |
 | `MINDVAULT_OFFLINE_ONLY` | `true` | Enforce offline-only runtime mode |

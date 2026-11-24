@@ -28,6 +28,7 @@ MindVault is a single-user, offline-first desktop application composed of two lo
 |  core/       -> Settings, loopback enforcement, health        |
 |  ingestion/  -> Untrusted file parsing, sanitization, chunks  |
 |  retrieval/  -> Hybrid vector + lexical retrieval             |
+|  chat/       -> Bounded planner, prompts, SSE chat workflow   |
 |  beliefs/    -> Claim extraction, belief evolution, conflicts |
 |  graph/      -> Entity/belief graph construction for D3.js    |
 |  scheduler/  -> Retention scoring & spaced review queues      |
@@ -69,14 +70,16 @@ MindVault is a single-user, offline-first desktop application composed of two lo
   - System: `GET /api/v1/health`, `GET /api/v1/system/status`
   - Ingestion & Documents: `POST /api/v1/ingest/file`, `POST /api/v1/ingest/batch`, `GET /api/v1/documents`, `GET /api/v1/documents/{id}`, `DELETE /api/v1/documents/{id}`
   - Retrieval & Indexing: `POST /api/v1/search`, `POST /api/v1/index/rebuild`, `GET /api/v1/index/status`
+  - Chat & SSE Streaming: `POST /api/v1/chat`, `POST /api/v1/chat/stream`
 - Local ingestion (`backend/app/ingestion`) validates file types and sizes, deduplicates by SHA-256 content hash, imports files into `MINDVAULT_VAULT_DIR`, extracts text via modular adapters (PyMuPDF for PDF, UTF-8 text/Markdown, optional Pillow+pytesseract OCR, optional offline Whisper with local model paths), normalizes untrusted text, splits into boundary-aware overlapping chunks persisted atomically in SQLite, and synchronizes chunk IDs into the retrieval indexes.
 - Offline hybrid retrieval (`backend/app/retrieval` & `backend/app/models/embeddings.py`) combines persistent ChromaDB cosine similarity search (with local sentence-transformer-compatible embeddings loaded with `HF_HUB_OFFLINE=1` / `local_files_only=True`) and `rank_bm25` (`BM25L`) lexical retrieval using weighted Reciprocal Rank Fusion (RRF) and optional deterministic phrase/coverage reranking. Metadata filters (`epoch_min`, `epoch_max`, `document_ids`, `file_types`) are enforced across both engines, and hybrid search degrades gracefully to BM25 when no local embedding model is available.
+- Local streaming chat (`backend/app/chat` & `backend/app/models/llm.py`) runs a strictly bounded 7-step workflow: (1) query analysis, (2) optional single-pass subquestion decomposition (capped at `MINDVAULT_CHAT_MAX_SUBQUESTIONS`, never recursive), (3) primary retrieval with epoch/metadata filters, (4) per-subquestion retrieval, (5) SQLite citation persistence in `citations`, (6) hardened `<vault_evidence>` prompt construction supporting `brief`, `summary`, `full`, and `socratic` modes, and (7) local token streaming via `LlamaCppProvider` (GGUF) or loopback-only `OllamaProvider` (`trust_env=False`, no `/api/pull`). `POST /api/v1/chat/stream` emits `status`, `subquestion`, `citation`, `token`, `answer_section`, `error`, and `done` SSE events and cancels local generation immediately on client disconnect.
 
 ### 2.5 Persistence & Model Adapters
 - **SQLite (`backend/app/db`):** Managed by `DatabaseManager` (`WAL` mode, `foreign_keys = ON`, parameterized queries only) and `MigrationRunner` (versioned SQL migrations tracked with SHA-256 checksums in `schema_migrations`).
   - Core tables (`001_initial_schema.sql`): `documents`, `chunks`, `beliefs`, `contradictions`, `graph_edges`, `retention_scores`, `citations`, `morning_briefs`.
 - **ChromaDB (`backend/app/retrieval/vector_store.py`):** Stores local embeddings on disk under `MINDVAULT_CHROMA_DIR` with `anonymized_telemetry=False`, keyed by SQLite `chunks.id` for idempotent upserts and cascade-consistent deletions.
-- **Local Models (`backend/app/models`):** Wraps offline sentence-transformer-compatible embedding models (`SentenceTransformerEmbeddingAdapter`) and local LLM backends (`llama.cpp` GGUF or optional local Ollama). Unavailable or missing models surface clear, structured status rather than crashing or downloading weights at runtime.
+- **Local Models (`backend/app/models`):** Wraps offline sentence-transformer-compatible embedding models (`SentenceTransformerEmbeddingAdapter`) and local LLM backends (`LlamaCppProvider` for `.gguf` files via `llama-cpp-python`, and loopback-only `OllamaProvider`). Unavailable or missing models surface clear `503` / SSE `error` responses with zero remote inference fallback.
 
 ## 3. Offline-First Guarantee
 
@@ -94,6 +97,7 @@ MindVault is a single-user, offline-first desktop application composed of two lo
 | `backend/app/db` | SQLite connection management, schema initialization, repositories |
 | `backend/app/ingestion` | Safe local file ingestion, text extraction, chunking |
 | `backend/app/retrieval` | Embedding indexing, vector search, lexical search, ranking |
+| `backend/app/chat` | Bounded query planning, grounded prompts, local SSE streaming chat |
 | `backend/app/beliefs` | Belief statements, evidence links, temporal evolution, contradictions |
 | `backend/app/graph` | Knowledge graph nodes/edges computation and filtering |
 | `backend/app/scheduler` | Memory decay modeling and spaced-review scheduling |
