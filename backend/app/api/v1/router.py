@@ -8,9 +8,11 @@ from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, ConfigDict
 
 from app.api.health import router as health_router
+from app.api.v1.ingestion import router as ingestion_router
 
 router = APIRouter()
 router.include_router(health_router)
+router.include_router(ingestion_router)
 
 
 class LocalPathsInfo(BaseModel):

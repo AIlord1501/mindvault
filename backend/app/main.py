@@ -18,6 +18,8 @@ from app.core.config import Settings
 from app.core.logging import configure_logging, shutdown_logging
 from app.db.database import DatabaseManager
 from app.db.migrations import MigrationRunner
+from app.db.repositories import DocumentRepository
+from app.ingestion.pipeline import IngestionPipeline
 
 
 def create_app(settings: Optional[Settings] = None) -> FastAPI:
@@ -39,10 +41,17 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         )
         migrations = MigrationRunner(db)
         newly_applied = migrations.apply_pending()
+        document_repo = DocumentRepository(db)
+        ingestion_pipeline = IngestionPipeline(
+            settings=resolved_settings,
+            repo=document_repo,
+        )
 
         application.state.logger = logger
         application.state.db = db
         application.state.migrations = migrations
+        application.state.document_repo = document_repo
+        application.state.ingestion_pipeline = ingestion_pipeline
 
         logger.info(
             "MindVault backend started",

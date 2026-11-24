@@ -65,7 +65,10 @@ MindVault is a single-user, offline-first desktop application composed of two lo
 - Bound **exclusively** to `127.0.0.1:8765` (non-loopback hosts are rejected by configuration validation).
 - Managed via FastAPI `lifespan` for local directory creation, SQLite initialization, transactional migrations, structured JSON logging, and graceful shutdown.
 - Validates all incoming payloads using Pydantic schemas and returns structured `422` validation errors.
-- Exposes root `GET /health` and versioned `/api/v1` endpoints (`GET /api/v1/health`, `GET /api/v1/system/status`), with future domain endpoints and SSE streams mounted under `/api/v1`.
+- Exposes root `GET /health` and versioned `/api/v1` endpoints:
+  - System: `GET /api/v1/health`, `GET /api/v1/system/status`
+  - Ingestion & Documents: `POST /api/v1/ingest/file`, `POST /api/v1/ingest/batch`, `GET /api/v1/documents`, `GET /api/v1/documents/{id}`, `DELETE /api/v1/documents/{id}`
+- Local ingestion (`backend/app/ingestion`) validates file types and sizes, deduplicates by SHA-256 content hash, imports files into `MINDVAULT_VAULT_DIR`, extracts text via modular adapters (PyMuPDF for PDF, UTF-8 text/Markdown, optional Pillow+pytesseract OCR, optional offline Whisper with local model paths), normalizes untrusted text, and splits into boundary-aware overlapping chunks persisted atomically in SQLite.
 
 ### 2.5 Persistence & Model Adapters
 - **SQLite (`backend/app/db`):** Managed by `DatabaseManager` (`WAL` mode, `foreign_keys = ON`, parameterized queries only) and `MigrationRunner` (versioned SQL migrations tracked with SHA-256 checksums in `schema_migrations`).

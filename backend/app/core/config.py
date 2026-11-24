@@ -19,6 +19,14 @@ def _parse_bool(value: str, default: bool = True) -> bool:
     return default
 
 
+def _parse_int(env_name: str, default: int) -> int:
+    raw = os.getenv(env_name, str(default)).strip()
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{env_name} must be an integer, got '{raw}'.") from exc
+
+
 @dataclass(frozen=True)
 class Settings:
     """Runtime settings for the MindVault backend."""
@@ -33,11 +41,17 @@ class Settings:
     chroma_dir: Path = Path("data/chroma")
     models_dir: Path = Path("data/models")
     logs_dir: Path = Path("data/logs")
+    vault_dir: Path = Path("data/vault")
     log_level: str = "INFO"
     log_to_file: bool = False
     sqlite_busy_timeout_ms: int = 5000
+    max_upload_size_bytes: int = 50 * 1024 * 1024
+    chunk_size: int = 1000
+    chunk_overlap: int = 150
     embedding_model: str = ""
     llm_model_path: str = ""
+    whisper_model_path: str = ""
+    tesseract_cmd: str = ""
     offline_only: bool = True
 
     def __post_init__(self) -> None:
@@ -58,6 +72,12 @@ class Settings:
         object.__setattr__(self, "log_level", normalized_level)
         if self.sqlite_busy_timeout_ms < 0:
             raise ValueError("sqlite_busy_timeout_ms must be non-negative.")
+        if self.max_upload_size_bytes <= 0:
+            raise ValueError("max_upload_size_bytes must be positive.")
+        if self.chunk_size <= 0:
+            raise ValueError("chunk_size must be positive.")
+        if self.chunk_overlap < 0 or self.chunk_overlap >= self.chunk_size:
+            raise ValueError("chunk_overlap must be >= 0 and strictly less than chunk_size.")
 
     def ensure_local_dirs(self) -> None:
         """Create required local storage directories if they do not exist."""
@@ -66,24 +86,17 @@ class Settings:
         self.chroma_dir.mkdir(parents=True, exist_ok=True)
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)
+        self.vault_dir.mkdir(parents=True, exist_ok=True)
 
     @classmethod
     def from_env(cls) -> Settings:
         """Load settings from environment variables with safe local defaults."""
         host = os.getenv("MINDVAULT_HOST", "127.0.0.1").strip()
-        port_raw = os.getenv("MINDVAULT_PORT", "8765").strip()
-        try:
-            port = int(port_raw)
-        except ValueError as exc:
-            raise ValueError(f"MINDVAULT_PORT must be an integer, got '{port_raw}'.") from exc
-
-        timeout_raw = os.getenv("MINDVAULT_SQLITE_BUSY_TIMEOUT_MS", "5000").strip()
-        try:
-            sqlite_busy_timeout_ms = int(timeout_raw)
-        except ValueError as exc:
-            raise ValueError(
-                f"MINDVAULT_SQLITE_BUSY_TIMEOUT_MS must be an integer, got '{timeout_raw}'."
-            ) from exc
+        port = _parse_int("MINDVAULT_PORT", 8765)
+        sqlite_busy_timeout_ms = _parse_int("MINDVAULT_SQLITE_BUSY_TIMEOUT_MS", 5000)
+        max_upload_size_bytes = _parse_int("MINDVAULT_MAX_UPLOAD_SIZE_BYTES", 50 * 1024 * 1024)
+        chunk_size = _parse_int("MINDVAULT_CHUNK_SIZE", 1000)
+        chunk_overlap = _parse_int("MINDVAULT_CHUNK_OVERLAP", 150)
 
         data_dir = Path(os.getenv("MINDVAULT_DATA_DIR", "data")).expanduser()
         sqlite_path = Path(
@@ -98,10 +111,16 @@ class Settings:
         logs_dir = Path(
             os.getenv("MINDVAULT_LOGS_DIR", str(data_dir / "logs"))
         ).expanduser()
+        vault_dir = Path(
+            os.getenv("MINDVAULT_VAULT_DIR", str(data_dir / "vault"))
+        ).expanduser()
+
         log_level = os.getenv("MINDVAULT_LOG_LEVEL", "INFO").strip()
         log_to_file = _parse_bool(os.getenv("MINDVAULT_LOG_TO_FILE", "false"), default=False)
         embedding_model = os.getenv("MINDVAULT_EMBEDDING_MODEL", "").strip()
         llm_model_path = os.getenv("MINDVAULT_LLM_MODEL_PATH", "").strip()
+        whisper_model_path = os.getenv("MINDVAULT_WHISPER_MODEL_PATH", "").strip()
+        tesseract_cmd = os.getenv("MINDVAULT_TESSERACT_CMD", "").strip()
         offline_only = _parse_bool(os.getenv("MINDVAULT_OFFLINE_ONLY", "true"), default=True)
 
         return cls(
@@ -112,10 +131,16 @@ class Settings:
             chroma_dir=chroma_dir,
             models_dir=models_dir,
             logs_dir=logs_dir,
+            vault_dir=vault_dir,
             log_level=log_level,
             log_to_file=log_to_file,
             sqlite_busy_timeout_ms=sqlite_busy_timeout_ms,
+            max_upload_size_bytes=max_upload_size_bytes,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
             embedding_model=embedding_model,
             llm_model_path=llm_model_path,
+            whisper_model_path=whisper_model_path,
+            tesseract_cmd=tesseract_cmd,
             offline_only=offline_only,
         )

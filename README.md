@@ -80,12 +80,18 @@ All runtime paths and ports can be configured with environment variables:
 | `MINDVAULT_SQLITE_PATH` | `<DATA_DIR>/mindvault.db` | SQLite metadata database path |
 | `MINDVAULT_CHROMA_DIR` | `<DATA_DIR>/chroma` | ChromaDB persistence directory |
 | `MINDVAULT_MODELS_DIR` | `<DATA_DIR>/models` | Local model directory (GGUF / embeddings) |
+| `MINDVAULT_VAULT_DIR` | `<DATA_DIR>/vault` | Managed local storage for ingested documents |
 | `MINDVAULT_LOGS_DIR` | `<DATA_DIR>/logs` | Local structured log directory |
 | `MINDVAULT_LOG_LEVEL` | `INFO` | Log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
 | `MINDVAULT_LOG_TO_FILE` | `false` | Write rotating JSON logs to `<LOGS_DIR>/mindvault.log` |
 | `MINDVAULT_SQLITE_BUSY_TIMEOUT_MS` | `5000` | SQLite busy timeout in milliseconds |
+| `MINDVAULT_MAX_UPLOAD_SIZE_BYTES` | `52428800` | Maximum allowed file size per upload (50 MiB) |
+| `MINDVAULT_CHUNK_SIZE` | `1000` | Default target chunk size in characters |
+| `MINDVAULT_CHUNK_OVERLAP` | `150` | Default chunk overlap in characters |
 | `MINDVAULT_EMBEDDING_MODEL` | `""` | Optional local embedding model path/name |
 | `MINDVAULT_LLM_MODEL_PATH` | `""` | Optional local GGUF model file path |
+| `MINDVAULT_WHISPER_MODEL_PATH` | `""` | Optional local Whisper model path (offline only) |
+| `MINDVAULT_TESSERACT_CMD` | `""` | Optional path to local Tesseract OCR binary |
 | `MINDVAULT_OFFLINE_ONLY` | `true` | Enforce offline-only runtime mode |
 
 ## Startup
