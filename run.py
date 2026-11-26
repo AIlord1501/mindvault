@@ -46,6 +46,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parse_args(argv)
     base = Settings.from_env()
+    # Validate loopback bind constraints before Uvicorn loads the ASGI app.
     settings = Settings(
         app_name=base.app_name,
         version=base.version,
